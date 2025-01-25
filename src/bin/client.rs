@@ -1,92 +1,77 @@
+use anyhow::Result;
+use bincode;
 use game_macroquad_example::{PlayerState, SERVER_ADDR};
 use macroquad::prelude::*;
-use renet::{ConnectionConfig, DefaultChannel, RenetClient};
-use renet_netcode::{ClientAuthentication, NetcodeClientTransport};
-use std::{
-    net::UdpSocket,
-    time::{Duration, SystemTime},
-};
+use std::net::SocketAddr;
+use std::sync::Arc;
+use tokio::net::UdpSocket;
+use tokio::sync::mpsc;
+use tokio::time::{self, Duration};
 
 const TILE_WIDTH: f32 = 32.0;
 const TILE_HEIGHT: f32 = 32.0;
-const BASE_MOVE_DELAY: f32 = 0.2; // Base delay for movement speed
-const GRID_COLOR: Color = color_u8!(200, 200, 200, 255); // Light gray grid color
+const BASE_MOVE_DELAY: f32 = 0.2;
+const GRID_COLOR: Color = color_u8!(31, 31, 31, 0);
 
 #[derive(Debug, Default)]
 struct Player {
     curr_location: (usize, usize),
     prev_location: (usize, usize),
     last_move_timer: f64,
-    speed: f32, // Movement speed (lower value = faster movement)
+    speed: f32,
 }
 
 #[macroquad::main("MMORPG")]
-async fn main() {
-    // GAME STATE
+async fn main() -> Result<()> {
     let mut player = Player {
         speed: BASE_MOVE_DELAY,
         last_move_timer: get_time(),
         ..Default::default()
     };
 
-    let mut _last_player_state_confirmation = get_time();
-    let mut client = RenetClient::new(ConnectionConfig::default());
+    // UDP Socket
+    let socket = UdpSocket::bind("0.0.0.0:0").await?;
+    socket.connect(SERVER_ADDR).await?;
+    let socket = Arc::new(socket);
 
-    // Setup transport layer using renet_netcode
-    let socket = UdpSocket::bind("0.0.0.0:0").unwrap();
-    let current_time = SystemTime::now()
-        .duration_since(SystemTime::UNIX_EPOCH)
-        .unwrap();
-    let authentication = ClientAuthentication::Unsecure {
-        server_addr: SERVER_ADDR,
-        client_id: 0,
-        user_data: None,
-        protocol_id: 0,
-    };
+    // MPSC Channel for network updates
+    let (tx, mut rx) = mpsc::unbounded_channel::<(usize, usize)>();
 
-    let mut transport = NetcodeClientTransport::new(current_time, authentication, socket).unwrap();
+    // Spawn async UDP receive task
+    let socket_recv = socket.clone();
+    tokio::spawn(async move {
+        let mut buf = [0; 1024];
+        while let Ok(size) = socket_recv.recv(&mut buf).await {
+            if let Ok(ps) = bincode::deserialize::<PlayerState>(&buf[..size]) {
+                _ = tx.send(ps.location);
+            }
+        }
+    });
 
     loop {
         clear_background(color_u8!(31, 31, 31, 0));
 
+        // Render player
         render_player(&player);
-
         draw_delimitator_lines();
 
+        // Handle movement
         handle_player_movement(&mut player);
 
-        // Receive new messages and update client
-        let delta_time = Duration::from_millis(16);
-        client.update(delta_time);
-        transport.update(delta_time, &mut client).unwrap();
+        // Process server messages from channel
+        if let Ok(location) = rx.try_recv() {
+            player.prev_location = player.curr_location;
+            player.curr_location = location;
+        }
 
-        process_server_msgs(&mut player, &mut client);
+        // Send player state to server if changed
+        send_new_pos_to_server(&player, &socket).await;
 
-        send_new_pos_to_server(&player, &mut client);
-
-        transport.send_packets(&mut client).unwrap();
-
-        next_frame().await
+        next_frame().await;
     }
 }
 
-// useful for debugging tiles
-fn draw_delimitator_lines() {
-    for i in (0..(screen_width() as usize)).step_by(TILE_WIDTH as usize) {
-        draw_line(i as f32, 0.0, i as f32, screen_height(), 1.0, GRID_COLOR);
-    }
-    for j in (0..(screen_height() as usize)).step_by(TILE_HEIGHT as usize) {
-        draw_line(0.0, j as f32, screen_width(), j as f32, 1.0, GRID_COLOR);
-    }
-}
-
-// TODO: check if the last position confirmed by the server is the same one
-// so you dont spam the server with the same position
-fn send_new_pos_to_server(player: &Player, client: &mut RenetClient) {
-    if client.is_disconnected() {
-        return;
-    }
-
+async fn send_new_pos_to_server(player: &Player, socket: &UdpSocket) {
     if player.curr_location == player.prev_location {
         return;
     }
@@ -95,33 +80,8 @@ fn send_new_pos_to_server(player: &Player, client: &mut RenetClient) {
         location: player.curr_location,
     };
 
-    println!(
-        "Sending message to server. location: {:?}. timestamp {}",
-        msg.location,
-        get_time()
-    );
-
     let serialized_message = bincode::serialize(&msg).unwrap();
-    client.send_message(DefaultChannel::ReliableOrdered, serialized_message);
-}
-
-fn process_server_msgs(player: &mut Player, client: &mut RenetClient) {
-    if client.is_disconnected() {
-        println!("client disconnected.");
-        return;
-    }
-
-    while let Some(message) = client.receive_message(DefaultChannel::ReliableOrdered) {
-        let ps: PlayerState = bincode::deserialize(&message).unwrap();
-
-        if player.curr_location == ps.location {
-            player.prev_location = player.curr_location;
-            continue;
-        }
-
-        player.prev_location = player.curr_location;
-        player.curr_location = ps.location;
-    }
+    _ = socket.send(&serialized_message).await;
 }
 
 fn handle_player_movement(player: &mut Player) {
@@ -187,4 +147,14 @@ fn render_player(player: &Player) {
     let y = player.curr_location.1 as f32 * TILE_HEIGHT;
 
     draw_rectangle(x, y, TILE_WIDTH, TILE_HEIGHT, color_u8!(255, 0, 0, 255));
+}
+
+// useful for debugging tiles
+fn draw_delimitator_lines() {
+    for i in (0..(screen_width() as usize)).step_by(TILE_WIDTH as usize) {
+        draw_line(i as f32, 0.0, i as f32, screen_height(), 1.0, GRID_COLOR);
+    }
+    for j in (0..(screen_height() as usize)).step_by(TILE_HEIGHT as usize) {
+        draw_line(0.0, j as f32, screen_width(), j as f32, 1.0, GRID_COLOR);
+    }
 }

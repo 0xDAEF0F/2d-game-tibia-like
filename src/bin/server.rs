@@ -1,69 +1,64 @@
+use anyhow::Result;
 use game_macroquad_example::{PlayerState, SERVER_ADDR};
-use renet::{ConnectionConfig, DefaultChannel, RenetServer, ServerEvent};
-use renet_netcode::{NetcodeServerTransport, ServerAuthentication, ServerConfig};
 use std::collections::HashMap;
-use std::net::UdpSocket;
-use std::time::SystemTime;
-use tokio::time::Duration;
+use std::net::SocketAddr;
+use std::sync::Arc;
+use tokio::net::UdpSocket;
+use tokio::sync::{Mutex, mpsc};
+use tokio::time::{self, Duration};
 
-fn main() {
-    let mut server = RenetServer::new(ConnectionConfig::default());
+const SERVER_TICK_RATE: u64 = 16; // ms
 
-    let socket: UdpSocket = UdpSocket::bind(SERVER_ADDR).unwrap();
-    let server_config = ServerConfig {
-        current_time: SystemTime::now()
-            .duration_since(SystemTime::UNIX_EPOCH)
-            .unwrap(),
-        max_clients: 64,
-        protocol_id: 0,
-        public_addresses: vec![SERVER_ADDR],
-        authentication: ServerAuthentication::Unsecure,
-    };
-    let mut transport = NetcodeServerTransport::new(server_config, socket).unwrap();
+#[tokio::main]
+async fn main() -> Result<()> {
+    let socket = Arc::new(UdpSocket::bind(SERVER_ADDR).await?);
+    let (tx, mut rx) = mpsc::unbounded_channel::<(SocketAddr, (usize, usize))>();
 
-    println!("Server running on {}", SERVER_ADDR);
+    println!("Server listening on: {}", SERVER_ADDR);
 
-    let mut _players_position: HashMap<usize, (usize, usize)> = HashMap::new();
+    let players = HashMap::<SocketAddr, (usize, usize)>::new();
+    let players = Arc::new(Mutex::new(players));
 
-    loop {
-        let delta_time = Duration::from_millis(16);
-        server.update(delta_time);
-        transport.update(delta_time, &mut server).unwrap();
+    // game loop
+    let players_clone = players.clone();
+    let socket_send = socket.clone();
+    tokio::spawn(async move {
+        let mut interval = time::interval(Duration::from_millis(SERVER_TICK_RATE));
+        loop {
+            interval.tick().await;
+            let players = players_clone.lock().await;
 
-        while let Some(event) = server.get_event() {
-            match event {
-                ServerEvent::ClientConnected { client_id } => {
-                    println!("Client {client_id} connected");
-                }
-                ServerEvent::ClientDisconnected { client_id, reason } => {
-                    println!("Client {client_id} disconnected: {reason}");
-                }
+            // one player, for now
+            if let Some((addr, location)) = players.iter().next() {
+                if let Ok(ps) = bincode::serialize(&PlayerState {
+                    location: *location,
+                }) {
+                    _ = socket_send.send_to(&ps, addr).await;
+                };
             }
         }
+    });
 
-        for client_id in server.clients_id() {
-            while let Some(message) =
-                server.receive_message(client_id, DefaultChannel::ReliableOrdered)
-            {
-                let player_state: PlayerState = bincode::deserialize(&message).unwrap();
-
-                let player_state_bytes: Vec<u8> = bincode::serialize(&player_state).unwrap();
-
-                println!(
-                    "sending message to client {client_id}: {:?}",
-                    player_state.location
-                );
-
-                server.send_message(
-                    client_id,
-                    DefaultChannel::ReliableOrdered,
-                    player_state_bytes,
-                );
+    // this task receives UDP packets
+    let socket_recv = socket.clone();
+    tokio::spawn(async move {
+        let mut buf = [0; 1024];
+        loop {
+            if let Ok((size, src)) = socket_recv.recv_from(&mut buf).await {
+                let maybe_ps = bincode::deserialize::<PlayerState>(&buf[..size]);
+                if let Ok(ps) = maybe_ps {
+                    _ = tx.send((src, ps.location));
+                };
             }
         }
+    });
 
-        transport.send_packets(&mut server);
-
-        std::thread::sleep(delta_time); // Running at 60hz
+    while let Some((socket_addr, location)) = rx.recv().await {
+        let mut players = players.lock().await;
+        if let Some(player) = players.get_mut(&socket_addr) {
+            *player = location;
+        }
     }
+
+    Ok(())
 }
