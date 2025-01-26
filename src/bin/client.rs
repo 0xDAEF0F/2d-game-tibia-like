@@ -1,41 +1,38 @@
 use anyhow::Result;
 use bincode;
 use game_macroquad_example::{PlayerState, SERVER_ADDR};
+use macroquad::Window;
 use macroquad::prelude::*;
+use std::collections::HashMap;
 use std::net::SocketAddr;
 use std::sync::Arc;
 use tokio::net::UdpSocket;
 use tokio::sync::mpsc;
-use tokio::time::{self, Duration};
+use tokio::sync::mpsc::UnboundedReceiver;
 
 const TILE_WIDTH: f32 = 32.0;
 const TILE_HEIGHT: f32 = 32.0;
 const BASE_MOVE_DELAY: f32 = 0.2;
-const GRID_COLOR: Color = color_u8!(31, 31, 31, 0);
+const GRID_COLOR: Color = color_u8!(200, 200, 200, 255);
 
-#[derive(Debug, Default)]
+#[derive(Debug)]
 struct Player {
+    id: SocketAddr,
     curr_location: (usize, usize),
     prev_location: (usize, usize),
     last_move_timer: f64,
     speed: f32,
 }
 
-#[macroquad::main("MMORPG")]
+#[tokio::main]
 async fn main() -> Result<()> {
-    let mut player = Player {
-        speed: BASE_MOVE_DELAY,
-        last_move_timer: get_time(),
-        ..Default::default()
-    };
-
-    // UDP Socket
     let socket = UdpSocket::bind("0.0.0.0:0").await?;
     socket.connect(SERVER_ADDR).await?;
     let socket = Arc::new(socket);
 
-    // MPSC Channel for network updates
-    let (tx, mut rx) = mpsc::unbounded_channel::<(usize, usize)>();
+    println!("client connected to server at: {}", SERVER_ADDR);
+
+    let (tx, rx) = mpsc::unbounded_channel::<(SocketAddr, (usize, usize))>();
 
     // Spawn async UDP receive task
     let socket_recv = socket.clone();
@@ -43,45 +40,71 @@ async fn main() -> Result<()> {
         let mut buf = [0; 1024];
         while let Ok(size) = socket_recv.recv(&mut buf).await {
             if let Ok(ps) = bincode::deserialize::<PlayerState>(&buf[..size]) {
-                _ = tx.send(ps.location);
+                println!("server sends location: {:?}", ps.location);
+                _ = tx.send((ps.id, ps.location));
             }
         }
     });
 
+    let conf = Conf {
+        window_title: "MMO Game".to_string(),
+        ..Default::default()
+    };
+    Window::from_config(conf, draw(socket, rx));
+
+    Ok(())
+}
+
+async fn draw(socket: Arc<UdpSocket>, mut rx: UnboundedReceiver<(SocketAddr, (usize, usize))>) {
+    let mut player = Player {
+        id: socket.local_addr().unwrap(),
+        speed: BASE_MOVE_DELAY,
+        curr_location: (0, 0),
+        prev_location: (0, 0),
+        last_move_timer: 0.0,
+    };
+    let mut other_players = HashMap::new();
     loop {
         clear_background(color_u8!(31, 31, 31, 0));
 
-        // Render player
+        // Render players
         render_player(&player);
+        render_other_players(&other_players);
+
         draw_delimitator_lines();
+
+        // Process server messages from channel
+        if let Ok((addr, location)) = rx.try_recv() {
+            if addr == player.id {
+                player.prev_location = player.curr_location;
+                player.curr_location = location;
+            } else {
+                other_players.insert(addr, location);
+            }
+        }
 
         // Handle movement
         handle_player_movement(&mut player);
 
-        // Process server messages from channel
-        if let Ok(location) = rx.try_recv() {
-            player.prev_location = player.curr_location;
-            player.curr_location = location;
-        }
-
         // Send player state to server if changed
-        send_new_pos_to_server(&player, &socket).await;
+        send_new_pos_to_server(&player, &socket);
 
         next_frame().await;
     }
 }
 
-async fn send_new_pos_to_server(player: &Player, socket: &UdpSocket) {
+fn send_new_pos_to_server(player: &Player, socket: &UdpSocket) {
     if player.curr_location == player.prev_location {
         return;
     }
 
     let msg = PlayerState {
+        id: player.id,
         location: player.curr_location,
     };
 
     let serialized_message = bincode::serialize(&msg).unwrap();
-    _ = socket.send(&serialized_message).await;
+    _ = socket.try_send(&serialized_message);
 }
 
 fn handle_player_movement(player: &mut Player) {
@@ -147,6 +170,15 @@ fn render_player(player: &Player) {
     let y = player.curr_location.1 as f32 * TILE_HEIGHT;
 
     draw_rectangle(x, y, TILE_WIDTH, TILE_HEIGHT, color_u8!(255, 0, 0, 255));
+}
+
+fn render_other_players(players: &HashMap<SocketAddr, (usize, usize)>) {
+    for &(x, y) in players.values() {
+        let x = x as f32 * TILE_WIDTH;
+        let y = y as f32 * TILE_HEIGHT;
+
+        draw_rectangle(x, y, TILE_WIDTH, TILE_HEIGHT, color_u8!(100, 149, 237, 255));
+    }
 }
 
 // useful for debugging tiles

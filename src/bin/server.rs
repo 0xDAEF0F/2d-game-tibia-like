@@ -28,15 +28,17 @@ async fn main() -> Result<()> {
             interval.tick().await;
             let players = players_clone.lock().await;
 
-            // one player, for now
-            if let Some((addr, location)) = players.iter().next() {
-                if let Ok(ps) = bincode::serialize(&PlayerState {
-                    location: *location,
-                }) {
-                    _ = socket_send.send_to(&ps, addr).await;
-                };
+            for (&addr, _) in players.iter() {
+                for (&a, &location) in players.iter() {
+                    let player_state = PlayerState { id: a, location };
+                    let serialized_ps = bincode::serialize(&player_state)?;
+                    // what to do in case you can't send to the client?
+                    _ = socket_send.send_to(&serialized_ps, addr).await;
+                }
             }
         }
+        #[allow(unreachable_code)]
+        anyhow::Ok(())
     });
 
     // this task receives UDP packets
@@ -47,6 +49,7 @@ async fn main() -> Result<()> {
             if let Ok((size, src)) = socket_recv.recv_from(&mut buf).await {
                 let maybe_ps = bincode::deserialize::<PlayerState>(&buf[..size]);
                 if let Ok(ps) = maybe_ps {
+                    println!("player state: {ps:?}");
                     _ = tx.send((src, ps.location));
                 };
             }
@@ -55,9 +58,7 @@ async fn main() -> Result<()> {
 
     while let Some((socket_addr, location)) = rx.recv().await {
         let mut players = players.lock().await;
-        if let Some(player) = players.get_mut(&socket_addr) {
-            *player = location;
-        }
+        players.insert(socket_addr, location);
     }
 
     Ok(())
