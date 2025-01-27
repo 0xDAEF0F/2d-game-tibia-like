@@ -1,6 +1,6 @@
 use anyhow::Result;
 use bincode;
-use game_macroquad_example::{Message, PlayerState, SERVER_ADDR};
+use game_macroquad_example::{Message, PlayerState, SERVER_UDP_ADDR};
 use macroquad::Window;
 use macroquad::prelude::*;
 use std::collections::HashMap;
@@ -9,6 +9,7 @@ use std::sync::Arc;
 use tokio::net::UdpSocket;
 use tokio::sync::mpsc;
 use tokio::sync::mpsc::UnboundedReceiver;
+use tokio::task::JoinHandle;
 
 const TILE_WIDTH: f32 = 32.0;
 const TILE_HEIGHT: f32 = 32.0;
@@ -49,9 +50,9 @@ impl OtherPlayers {
 async fn main() -> Result<()> {
     let socket = UdpSocket::bind("0.0.0.0:0").await?;
     let socket = Arc::new(socket);
-    socket.connect(SERVER_ADDR).await?;
+    socket.connect(SERVER_UDP_ADDR).await?;
 
-    println!("client connected to server at: {}", SERVER_ADDR);
+    println!("client connected to server at: {}", SERVER_UDP_ADDR);
 
     let (tx, rx) = mpsc::unbounded_channel::<Message>();
 
@@ -67,11 +68,14 @@ async fn main() -> Result<()> {
         }
     });
 
-    tokio::spawn(async move {
+    let socket_ = socket.clone();
+    let _: JoinHandle<Result<()>> = tokio::spawn(async move {
         _ = tokio::signal::ctrl_c().await;
-        _ = tx.send(Message::Disconnect);
 
-        println!("shutting down program.");
+        let serialize = bincode::serialize(&Message::Disconnect)?;
+        socket_.send(&serialize).await?;
+
+        println!("shutting down client program.");
 
         std::process::exit(0);
     });
@@ -104,20 +108,22 @@ async fn draw(socket: Arc<UdpSocket>, mut rx: UnboundedReceiver<Message>) {
         if let Ok(msg) = rx.try_recv() {
             match msg {
                 Message::PlayerState(ps) => {
-                    if ps.id == player.id {
-                        if ps.client_request_id >= player.request_id {
-                            player.prev_location = ps.location;
-                            player.curr_location = ps.location;
-                        } else {
-                            player.prev_location = player.curr_location;
-                        }
+                    if ps.client_request_id.unwrap() >= player.request_id {
+                        player.prev_location = ps.location;
+                        player.curr_location = ps.location;
                     } else {
-                        other_players.0.insert(ps.id, ps.location);
+                        player.prev_location = player.curr_location;
                     }
                 }
                 Message::Disconnect => {
+                    println!("sending disconnect to server");
                     let disc_msg = bincode::serialize(&Message::Disconnect).unwrap();
                     _ = socket.try_send(&disc_msg);
+                }
+                Message::RestOfPlayers(rp) => {
+                    let iter = rp.into_iter().map(|p| (p.id, p.location));
+                    let new_other_players = HashMap::from_iter(iter);
+                    other_players.0 = new_other_players;
                 }
             }
         }
@@ -145,7 +151,7 @@ fn send_new_pos_to_server(player: &mut Player, socket: &UdpSocket) {
         id: player.id,
         client_request_id: {
             player.request_id += 1;
-            player.request_id
+            Some(player.request_id)
         },
         location: player.curr_location,
     };

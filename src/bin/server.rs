@@ -1,9 +1,9 @@
 use anyhow::Result;
-use game_macroquad_example::{Message, PlayerState, SERVER_ADDR};
+use game_macroquad_example::{Message, PlayerState, SERVER_TCP_ADDR, SERVER_UDP_ADDR};
 use std::collections::HashMap;
 use std::net::SocketAddr;
 use std::sync::Arc;
-use tokio::net::UdpSocket;
+use tokio::net::{TcpListener, UdpSocket};
 use tokio::sync::{Mutex, mpsc};
 use tokio::task::JoinHandle;
 use tokio::time::{self, Duration};
@@ -17,10 +17,13 @@ enum ServerChannel {
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    let socket = Arc::new(UdpSocket::bind(SERVER_ADDR).await?);
-    let (tx, mut rx) = mpsc::unbounded_channel::<ServerChannel>();
+    let socket = Arc::new(UdpSocket::bind(SERVER_UDP_ADDR).await?);
+    let tcp_listener = TcpListener::bind(SERVER_TCP_ADDR).await?;
 
-    println!("Server listening on: {}", SERVER_ADDR);
+    println!("Server listening on UDP: {}", SERVER_UDP_ADDR);
+    println!("Server listening on TCP: {}", SERVER_TCP_ADDR);
+
+    let (tx, mut rx) = mpsc::unbounded_channel::<ServerChannel>();
 
     let players = HashMap::<SocketAddr, PlayerState>::new();
     let players = Arc::new(Mutex::new(players));
@@ -34,18 +37,23 @@ async fn main() -> Result<()> {
             interval.tick().await;
             let players = players_clone.lock().await;
 
-            for (&addr, _) in players.iter() {
-                for (&a, ps) in players.iter() {
-                    let ps = PlayerState {
-                        id: a,
-                        client_request_id: ps.client_request_id,
+            for addr in players.keys().cloned() {
+                let ps = players.get(&addr).cloned().unwrap();
+                let ps_ser = bincode::serialize(&Message::PlayerState(ps))?;
+                _ = socket_send.send_to(&ps_ser, addr).await;
+
+                let rest = players
+                    .values()
+                    .filter(|ps| ps.id != addr)
+                    .map(|ps| PlayerState {
+                        id: ps.id,
+                        client_request_id: None,
                         location: ps.location,
-                    };
-                    let msg = Message::PlayerState(ps);
-                    let serialized = bincode::serialize(&msg)?;
-                    // what to do in case you can't send to the client?
-                    _ = socket_send.send_to(&serialized, addr).await;
-                }
+                    });
+
+                let rest_players = Message::RestOfPlayers(rest.collect());
+                let rest_players_ser = bincode::serialize(&rest_players)?;
+                _ = socket_send.send_to(&rest_players_ser, addr).await;
             }
         }
     });
@@ -61,6 +69,7 @@ async fn main() -> Result<()> {
                     let sc = match msg {
                         Message::Disconnect => ServerChannel::Disconnect(src),
                         Message::PlayerState(ps) => ServerChannel::PlayerState(ps),
+                        Message::RestOfPlayers(_) => unreachable!(),
                     };
                     _ = tx.send(sc);
                 } else {
@@ -82,15 +91,18 @@ async fn main() -> Result<()> {
 
                 let player = players.get_mut(&ps.id).unwrap();
 
-                if ps.client_request_id < player.client_request_id {
+                if ps.client_request_id <= player.client_request_id {
                     continue;
                 }
+
+                // println!("client_req: {} - {:?}", ps.client_request_id, ps.location);
 
                 // still needs some form of validation to check if the location is valid
                 player.client_request_id = ps.client_request_id;
                 player.location = ps.location;
             }
             ServerChannel::Disconnect(addr) => {
+                println!("{addr:?} disconnected");
                 players.lock().await.remove(&addr);
             }
         }
