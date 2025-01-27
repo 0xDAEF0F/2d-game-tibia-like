@@ -1,6 +1,6 @@
 use anyhow::Result;
 use bincode;
-use game_macroquad_example::{PlayerState, SERVER_ADDR};
+use game_macroquad_example::{Message, PlayerState, SERVER_ADDR};
 use macroquad::Window;
 use macroquad::prelude::*;
 use std::collections::HashMap;
@@ -33,25 +33,47 @@ impl Player {
     }
 }
 
+struct OtherPlayers(HashMap<SocketAddr, (usize, usize)>);
+
+impl OtherPlayers {
+    pub fn render(&self) {
+        for &(x, y) in self.0.values() {
+            let x = x as f32 * TILE_WIDTH;
+            let y = y as f32 * TILE_HEIGHT;
+            draw_rectangle(x, y, TILE_WIDTH, TILE_HEIGHT, color_u8!(100, 149, 237, 255));
+        }
+    }
+}
+
 #[tokio::main]
 async fn main() -> Result<()> {
     let socket = UdpSocket::bind("0.0.0.0:0").await?;
-    socket.connect(SERVER_ADDR).await?;
     let socket = Arc::new(socket);
+    socket.connect(SERVER_ADDR).await?;
 
     println!("client connected to server at: {}", SERVER_ADDR);
 
-    let (tx, rx) = mpsc::unbounded_channel::<PlayerState>();
+    let (tx, rx) = mpsc::unbounded_channel::<Message>();
 
     // Spawn async UDP receive task
     let socket_recv = socket.clone();
+    let tx_ = tx.clone();
     tokio::spawn(async move {
         let mut buf = [0; 1024];
         while let Ok(size) = socket_recv.recv(&mut buf).await {
-            if let Ok(ps) = bincode::deserialize::<PlayerState>(&buf[..size]) {
-                _ = tx.send(ps);
+            if let Ok(ps) = bincode::deserialize::<Message>(&buf[..size]) {
+                _ = tx_.send(ps);
             }
         }
+    });
+
+    tokio::spawn(async move {
+        _ = tokio::signal::ctrl_c().await;
+        _ = tx.send(Message::Disconnect);
+
+        println!("shutting down program.");
+
+        std::process::exit(0);
     });
 
     let conf = Conf {
@@ -63,7 +85,7 @@ async fn main() -> Result<()> {
     Ok(())
 }
 
-async fn draw(socket: Arc<UdpSocket>, mut rx: UnboundedReceiver<PlayerState>) {
+async fn draw(socket: Arc<UdpSocket>, mut rx: UnboundedReceiver<Message>) {
     let mut player = Player {
         id: socket.local_addr().unwrap(),
         request_id: 0,
@@ -72,29 +94,37 @@ async fn draw(socket: Arc<UdpSocket>, mut rx: UnboundedReceiver<PlayerState>) {
         prev_location: (0, 0),
         last_move_timer: 0.0,
     };
-    let mut other_players = HashMap::new();
+    let mut other_players = OtherPlayers(HashMap::new());
     loop {
         clear_background(color_u8!(31, 31, 31, 0));
 
         draw_delimitator_lines();
 
         // Process server messages from channel
-        if let Ok(ps) = rx.try_recv() {
-            if ps.id == player.id {
-                if ps.client_request_id >= player.request_id {
-                    player.prev_location = ps.location;
-                    player.curr_location = ps.location;
-                } else {
-                    player.prev_location = player.curr_location;
+        if let Ok(msg) = rx.try_recv() {
+            match msg {
+                Message::PlayerState(ps) => {
+                    if ps.id == player.id {
+                        if ps.client_request_id >= player.request_id {
+                            player.prev_location = ps.location;
+                            player.curr_location = ps.location;
+                        } else {
+                            player.prev_location = player.curr_location;
+                        }
+                    } else {
+                        other_players.0.insert(ps.id, ps.location);
+                    }
                 }
-            } else {
-                other_players.insert(ps.id, ps.location);
+                Message::Disconnect => {
+                    let disc_msg = bincode::serialize(&Message::Disconnect).unwrap();
+                    _ = socket.try_send(&disc_msg);
+                }
             }
         }
 
         // Render players
         player.render();
-        render_other_players(&other_players);
+        other_players.render();
 
         // Handle movement
         handle_player_movement(&mut player);
@@ -111,7 +141,7 @@ fn send_new_pos_to_server(player: &mut Player, socket: &UdpSocket) {
         return;
     }
 
-    let msg = PlayerState {
+    let ps = PlayerState {
         id: player.id,
         client_request_id: {
             player.request_id += 1;
@@ -125,7 +155,7 @@ fn send_new_pos_to_server(player: &mut Player, socket: &UdpSocket) {
     //     msg.client_request_id, player.prev_location, player.curr_location
     // );
 
-    let serialized_message = bincode::serialize(&msg).unwrap();
+    let serialized_message = bincode::serialize(&Message::PlayerState(ps)).unwrap();
     _ = socket.try_send(&serialized_message);
 }
 
@@ -185,15 +215,6 @@ fn move_player(player: &mut Player, direction: (isize, isize), current_time: f64
     player.curr_location.1 = (player.curr_location.1 as isize + direction.1) as usize;
     player.last_move_timer = current_time;
     player.speed = speed;
-}
-
-fn render_other_players(players: &HashMap<SocketAddr, (usize, usize)>) {
-    for &(x, y) in players.values() {
-        let x = x as f32 * TILE_WIDTH;
-        let y = y as f32 * TILE_HEIGHT;
-
-        draw_rectangle(x, y, TILE_WIDTH, TILE_HEIGHT, color_u8!(100, 149, 237, 255));
-    }
 }
 
 // useful for debugging tiles
