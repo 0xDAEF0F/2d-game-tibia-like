@@ -6,12 +6,20 @@ use macroquad::prelude::*;
 use std::collections::HashMap;
 use std::net::SocketAddr;
 use std::sync::Arc;
+use tiled::Loader;
 use tokio::net::UdpSocket;
 use tokio::sync::mpsc::{self, UnboundedReceiver};
 use tokio::task::JoinHandle;
 
-const TILE_WIDTH: f32 = 32.0;
 const TILE_HEIGHT: f32 = 32.0;
+const TILE_WIDTH: f32 = 32.0;
+
+const CAMERA_HEIGHT: u32 = 5;
+const CAMERA_WIDTH: u32 = 5;
+
+const MAP_HEIGHT: u32 = 7;
+const MAP_WIDTH: u32 = 7;
+
 const BASE_MOVE_DELAY: f32 = 0.2;
 const GRID_COLOR: Color = color_u8!(200, 200, 200, 255);
 
@@ -26,21 +34,19 @@ struct Player {
 }
 
 impl Player {
+    /// Renders the player in the middle of the viewport.
     pub fn render(&self) {
-        let x = self.curr_location.0 as f32 * TILE_WIDTH;
-        let y = self.curr_location.1 as f32 * TILE_HEIGHT;
+        let x = (CAMERA_WIDTH / 2) as f32 * TILE_WIDTH;
+        let y = (CAMERA_HEIGHT / 2) as f32 * TILE_HEIGHT;
         draw_rectangle(x, y, TILE_WIDTH, TILE_HEIGHT, RED);
     }
 
     pub fn can_move((x, y): (i32, i32), op: &OtherPlayers) -> bool {
-        let horizontal_tiles = (screen_width() / TILE_WIDTH) as i32 - 1;
-        let vertical_tiles = (screen_height() / TILE_HEIGHT) as i32 - 1;
-
         if x.is_negative() || y.is_negative() {
             return false;
         }
 
-        if x > horizontal_tiles || y > vertical_tiles {
+        if x > (MAP_WIDTH - 1) as i32 || y > (MAP_HEIGHT - 1) as i32 {
             return false;
         }
 
@@ -57,11 +63,28 @@ impl Player {
 struct OtherPlayers(HashMap<SocketAddr, (usize, usize)>);
 
 impl OtherPlayers {
-    pub fn render(&self) {
+    pub fn render(&self, player: &Player) {
         for &(x, y) in self.0.values() {
-            let x = x as f32 * TILE_WIDTH;
-            let y = y as f32 * TILE_HEIGHT;
-            draw_rectangle(x, y, TILE_WIDTH, TILE_HEIGHT, color_u8!(100, 149, 237, 255));
+            let (x, y) = (x as i32, y as i32);
+            let (px, py) = (player.curr_location.0 as i32, player.curr_location.1 as i32);
+
+            let relative_offset_x = (CAMERA_WIDTH / 2) as i32;
+            let relative_offset_y = (CAMERA_HEIGHT / 2) as i32;
+
+            // is the `other_player` outside the viewport?
+            if x < px - relative_offset_x
+                || x > px + relative_offset_x
+                || y < py - relative_offset_y
+                || y > py + relative_offset_y
+            {
+                continue;
+            }
+
+            // determine where to render relative to the player
+            let x = (x as i32 - px as i32 + CAMERA_WIDTH as i32 / 2) as f32 * TILE_WIDTH;
+            let y = (y as i32 - py as i32 + CAMERA_HEIGHT as i32 / 2) as f32 * TILE_HEIGHT;
+
+            draw_rectangle(x, y, TILE_WIDTH, TILE_HEIGHT, MAGENTA);
         }
     }
 }
@@ -75,6 +98,12 @@ async fn main() -> Result<()> {
     println!("client connected to server at: {}", SERVER_UDP_ADDR);
 
     let (tx, rx) = mpsc::unbounded_channel::<Message>();
+
+    // TODO**
+    // let mut loader = Loader::new();
+    // let map = loader.load_tmx_map("assets/basic-map.tmx")?;
+    // println!("Map: {map:?}");
+    // println!("{:#?}", map.tilesets()[0].get_tile(0).unwrap());
 
     // Spawn async UDP receive task
     let socket_recv = socket.clone();
@@ -93,7 +122,7 @@ async fn main() -> Result<()> {
         _ = tokio::signal::ctrl_c().await;
 
         let serialize = bincode::serialize(&Message::Disconnect)?;
-        socket_.send(&serialize).await?;
+        _ = socket_.try_send(&serialize);
 
         println!("shutting down client program.");
 
@@ -110,19 +139,20 @@ async fn main() -> Result<()> {
 }
 
 async fn draw(socket: Arc<UdpSocket>, mut rx: UnboundedReceiver<Message>) {
+    let spawn_location = (4, 4);
     let mut player = Player {
         id: socket.local_addr().unwrap(),
         request_id: 0,
         speed: BASE_MOVE_DELAY,
-        curr_location: (0, 0),
-        prev_location: (0, 0),
+        curr_location: spawn_location,
+        prev_location: spawn_location,
         last_move_timer: 0.0,
     };
     let mut other_players = OtherPlayers(HashMap::new());
     loop {
         clear_background(color_u8!(31, 31, 31, 0));
 
-        draw_delimitator_lines();
+        // draw_delimitator_lines();
 
         // Process server messages from channel
         if let Ok(msg) = rx.try_recv() {
@@ -149,8 +179,12 @@ async fn draw(socket: Arc<UdpSocket>, mut rx: UnboundedReceiver<Message>) {
         }
 
         // Render players
+        render_view(&player);
         player.render();
-        other_players.render();
+        // println!("{player:?}");
+        other_players.render(&player);
+
+        // draw_border_grid();
 
         // Handle movement
         handle_player_movement(&mut player, &other_players);
@@ -262,14 +296,54 @@ fn move_player(player: &mut Player, direction: (isize, isize), current_time: f64
     player.curr_location.1 = (player.curr_location.1 as isize + direction.1) as usize;
     player.last_move_timer = current_time;
     player.speed = speed;
+    // println!("moving player to {:?}", player.curr_location);
 }
 
 // useful for debugging tiles
 fn draw_delimitator_lines() {
-    for i in (0..(screen_width() as usize)).step_by(TILE_WIDTH as usize) {
-        draw_line(i as f32, 0.0, i as f32, screen_height(), 1.0, GRID_COLOR);
+    let max_x = CAMERA_WIDTH * TILE_WIDTH as u32;
+    let max_y = CAMERA_HEIGHT * TILE_HEIGHT as u32;
+
+    for i in (0..max_x).step_by(TILE_WIDTH as usize) {
+        draw_line(i as f32, 0.0, i as f32, max_y as f32, 1.0, GRID_COLOR);
     }
-    for j in (0..(screen_height() as usize)).step_by(TILE_HEIGHT as usize) {
-        draw_line(0.0, j as f32, screen_width(), j as f32, 1.0, GRID_COLOR);
+    for j in (0..max_y).step_by(TILE_HEIGHT as usize) {
+        draw_line(0.0, j as f32, max_x as f32, j as f32, 1.0, GRID_COLOR);
+    }
+}
+
+fn draw_border_grid() {
+    let max_x = CAMERA_WIDTH * TILE_WIDTH as u32;
+    let max_y = CAMERA_HEIGHT * TILE_HEIGHT as u32;
+
+    draw_line(0.0, 0.0, max_x as f32, 0.0, 1.0, MAGENTA);
+    draw_line(0.0, 0.0, 0.0, max_y as f32, 1.0, MAGENTA);
+    draw_line(max_x as f32, 0.0, max_x as f32, max_y as f32, 1.0, MAGENTA);
+    draw_line(0.0, max_y as f32, max_x as f32, max_y as f32, 1.0, MAGENTA);
+}
+
+/// Renders the camera around the player
+fn render_view(player: &Player) {
+    for i in 0..CAMERA_HEIGHT {
+        for j in 0..CAMERA_WIDTH {
+            let x = player.curr_location.0 as i32 - CAMERA_WIDTH as i32 / 2 + j as i32;
+            let y = player.curr_location.1 as i32 - CAMERA_HEIGHT as i32 / 2 + i as i32;
+
+            let color = if x < 0 || y < 0 || x >= MAP_WIDTH as i32 || y >= MAP_HEIGHT as i32 {
+                BLACK
+            } else if (x + y) % 2 == 0 {
+                WHITE
+            } else {
+                GRAY
+            };
+
+            draw_rectangle(
+                j as f32 * TILE_HEIGHT,
+                i as f32 * TILE_WIDTH,
+                TILE_WIDTH,
+                TILE_HEIGHT,
+                color,
+            );
+        }
     }
 }
