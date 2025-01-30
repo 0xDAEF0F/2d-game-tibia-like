@@ -1,5 +1,6 @@
 use anyhow::Result;
 use bincode;
+use game_macroquad_example::Tilesheet;
 use game_macroquad_example::{Message, PlayerState, SERVER_UDP_ADDR};
 use macroquad::Window;
 use macroquad::prelude::*;
@@ -7,6 +8,7 @@ use std::collections::HashMap;
 use std::net::SocketAddr;
 use std::sync::Arc;
 use tiled::Loader;
+use tiled::Map;
 use tokio::net::UdpSocket;
 use tokio::sync::mpsc::{self, UnboundedReceiver};
 use tokio::task::JoinHandle;
@@ -99,12 +101,6 @@ async fn main() -> Result<()> {
 
     let (tx, rx) = mpsc::unbounded_channel::<Message>();
 
-    // TODO**
-    // let mut loader = Loader::new();
-    // let map = loader.load_tmx_map("assets/basic-map.tmx")?;
-    // println!("Map: {map:?}");
-    // println!("{:#?}", map.tilesets()[0].get_tile(0).unwrap());
-
     // Spawn async UDP receive task
     let socket_recv = socket.clone();
     let tx_ = tx.clone();
@@ -149,6 +145,22 @@ async fn draw(socket: Arc<UdpSocket>, mut rx: UnboundedReceiver<Message>) {
         last_move_timer: 0.0,
     };
     let mut other_players = OtherPlayers(HashMap::new());
+
+    let mut loader = Loader::new();
+    let map = loader.load_tmx_map("assets/basic-map.tmx").unwrap();
+    // println!("Map: {map:?}");
+    // println!("{:#?}", map.tilesets()[0].get_tile(0).unwrap());
+    let tileset = map.tilesets()[0].clone();
+    // println!("{tileset:?}");
+    let layer = map.get_layer(0).unwrap();
+    let tilelayer = layer.as_tile_layer().unwrap();
+
+    let tilesheet = Tilesheet::from_tileset(tileset);
+
+    let tile = tilelayer.get_tile(0, 0).unwrap();
+
+    // println!("{tile:#?}");
+
     loop {
         clear_background(color_u8!(31, 31, 31, 0));
 
@@ -179,7 +191,7 @@ async fn draw(socket: Arc<UdpSocket>, mut rx: UnboundedReceiver<Message>) {
         }
 
         // Render players
-        render_view(&player);
+        render_view(&player, &map, &tilesheet);
         player.render();
         // println!("{player:?}");
         other_players.render(&player);
@@ -323,27 +335,36 @@ fn draw_border_grid() {
 }
 
 /// Renders the camera around the player
-fn render_view(player: &Player) {
+fn render_view(player: &Player, map: &Map, tilesheet: &Tilesheet) {
     for i in 0..CAMERA_HEIGHT {
         for j in 0..CAMERA_WIDTH {
             let x = player.curr_location.0 as i32 - CAMERA_WIDTH as i32 / 2 + j as i32;
             let y = player.curr_location.1 as i32 - CAMERA_HEIGHT as i32 / 2 + i as i32;
 
-            let color = if x < 0 || y < 0 || x >= MAP_WIDTH as i32 || y >= MAP_HEIGHT as i32 {
-                BLACK
-            } else if (x + y) % 2 == 0 {
-                WHITE
-            } else {
-                GRAY
-            };
+            let tile_id = map
+                .get_layer(0)
+                .and_then(|l| l.as_tile_layer())
+                .and_then(|tl| tl.get_tile(x, y))
+                .map(|t| t.id());
 
-            draw_rectangle(
-                j as f32 * TILE_HEIGHT,
-                i as f32 * TILE_WIDTH,
-                TILE_WIDTH,
-                TILE_HEIGHT,
-                color,
-            );
+            if let Some(t_id) = tile_id {
+                tilesheet.draw_tile_id_at(t_id, (j as u32, i as u32));
+            } else {
+                draw_rectangle(
+                    j as f32 * TILE_HEIGHT,
+                    i as f32 * TILE_WIDTH,
+                    TILE_WIDTH,
+                    TILE_HEIGHT,
+                    BLACK,
+                );
+            }
+            // let color = if x < 0 || y < 0 || x >= MAP_WIDTH as i32 || y >= MAP_HEIGHT as i32 {
+            //     BLACK
+            // } else if (x + y) % 2 == 0 {
+            //     WHITE
+            // } else {
+            //     GRAY
+            // };
         }
     }
 }

@@ -1,3 +1,9 @@
+mod directions;
+mod tilesheet;
+
+pub use directions::*;
+pub use tilesheet::*;
+
 use serde::{Deserialize, Serialize};
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 
