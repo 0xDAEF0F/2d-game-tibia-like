@@ -16,11 +16,11 @@ use tokio::task::JoinHandle;
 const TILE_HEIGHT: f32 = 32.0;
 const TILE_WIDTH: f32 = 32.0;
 
-const CAMERA_HEIGHT: u32 = 5;
-const CAMERA_WIDTH: u32 = 5;
+const CAMERA_HEIGHT: u32 = 10;
+const CAMERA_WIDTH: u32 = 10;
 
-const MAP_HEIGHT: u32 = 7;
-const MAP_WIDTH: u32 = 7;
+const MAP_HEIGHT: u32 = 20;
+const MAP_WIDTH: u32 = 30;
 
 const BASE_MOVE_DELAY: f32 = 0.2;
 const GRID_COLOR: Color = color_u8!(200, 200, 200, 255);
@@ -135,7 +135,7 @@ async fn main() -> Result<()> {
 }
 
 async fn draw(socket: Arc<UdpSocket>, mut rx: UnboundedReceiver<Message>) {
-    let spawn_location = (4, 4);
+    let spawn_location = ((MAP_WIDTH / 2) as usize, (MAP_HEIGHT / 2) as usize);
     let mut player = Player {
         id: socket.local_addr().unwrap(),
         request_id: 0,
