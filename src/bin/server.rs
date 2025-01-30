@@ -18,7 +18,7 @@ enum ServerChannel {
 #[tokio::main]
 async fn main() -> Result<()> {
     let socket = Arc::new(UdpSocket::bind(SERVER_UDP_ADDR).await?);
-    let tcp_listener = TcpListener::bind(SERVER_TCP_ADDR).await?;
+    let _tcp_listener = TcpListener::bind(SERVER_TCP_ADDR).await?;
 
     println!("Server listening on UDP: {}", SERVER_UDP_ADDR);
     println!("Server listening on TCP: {}", SERVER_TCP_ADDR);
@@ -94,8 +94,6 @@ async fn main() -> Result<()> {
                 if ps.client_request_id <= player.client_request_id {
                     continue;
                 }
-
-                // println!("client_req: {} - {:?}", ps.client_request_id, ps.location);
 
                 // still needs some form of validation to check if the location is valid
                 player.client_request_id = ps.client_request_id;

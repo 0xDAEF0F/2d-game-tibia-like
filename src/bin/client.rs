@@ -2,13 +2,14 @@ use anyhow::Result;
 use bincode;
 use game_macroquad_example::Tilesheet;
 use game_macroquad_example::{Message, PlayerState, SERVER_UDP_ADDR};
+use itertools::Itertools;
 use macroquad::Window;
 use macroquad::prelude::*;
 use std::collections::HashMap;
 use std::net::SocketAddr;
 use std::sync::Arc;
-use tiled::Loader;
 use tiled::Map;
+use tiled::{Loader, ObjectData};
 use tokio::net::UdpSocket;
 use tokio::sync::mpsc::{self, UnboundedReceiver};
 use tokio::task::JoinHandle;
@@ -23,7 +24,47 @@ const MAP_WIDTH: u32 = 30;
 const MAP_HEIGHT: u32 = 20;
 
 const BASE_MOVE_DELAY: f32 = 0.2;
-const GRID_COLOR: Color = color_u8!(200, 200, 200, 255);
+
+#[derive(Debug, Clone, Copy)]
+pub enum GameObject {
+    FlowerPot { id: u32 },
+}
+
+impl From<u32> for GameObject {
+    fn from(id: u32) -> GameObject {
+        match id {
+            149 => GameObject::FlowerPot { id },
+            id => todo!("{id} not implemented"),
+        }
+    }
+}
+
+impl Into<u32> for &GameObject {
+    fn into(self) -> u32 {
+        match self {
+            GameObject::FlowerPot { id } => *id,
+        }
+    }
+}
+
+#[derive(Debug)]
+struct GameObjects {
+    objects: HashMap<(usize, usize), GameObject>,
+}
+
+impl GameObjects {
+    pub fn from_object_data(a: &[ObjectData]) -> GameObjects {
+        let objects = a.iter().map(|od| {
+            (
+                ((od.x / 32.0) as usize, (od.y / 32.0) as usize),
+                od.tile_data().expect("expected tile data").id().into(),
+            )
+        });
+        let objects: HashMap<(usize, usize), GameObject> = HashMap::from_iter(objects);
+
+        GameObjects { objects }
+    }
+}
 
 #[derive(Debug)]
 struct Player {
@@ -151,6 +192,20 @@ async fn draw(socket: Arc<UdpSocket>, mut rx: UnboundedReceiver<Message>) {
         loader.load_tmx_map("assets/basic-map.tmx").unwrap()
     };
     let tilesheet = Tilesheet::from_tileset(map.tilesets()[0].clone());
+    let objects_tilesheet = Tilesheet::from_tileset(map.tilesets()[1].clone());
+
+    let objects = map
+        .layers()
+        .filter_map(|layer| match layer.layer_type() {
+            tiled::LayerType::Objects(object_layer) => Some(object_layer),
+            _ => None,
+        })
+        .collect_vec();
+
+    let objects = objects[0].object_data();
+    let mut game_objects = GameObjects::from_object_data(objects);
+
+    let mut moving_object: Option<(usize, usize)> = None;
 
     loop {
         clear_background(color_u8!(31, 31, 31, 0));
@@ -184,8 +239,15 @@ async fn draw(socket: Arc<UdpSocket>, mut rx: UnboundedReceiver<Message>) {
         player.render();
         other_players.render(&player);
 
+        render_objects(&player, &objects_tilesheet, &game_objects);
+
         // Handle movement
         handle_player_movement(&mut player, &other_players);
+
+        // Part A
+        handle_start_move_object(&game_objects, &mut moving_object, &player);
+
+        handle_end_move_object(&mut game_objects, &mut moving_object, &player);
 
         // Send player state to server if changed
         send_new_pos_to_server(&mut player, &socket);
@@ -207,11 +269,6 @@ fn send_new_pos_to_server(player: &mut Player, socket: &UdpSocket) {
         },
         location: player.curr_location,
     };
-
-    // println!(
-    //     "req_id: {} - prev: {:?} - curr: {:?}",
-    //     msg.client_request_id, player.prev_location, player.curr_location
-    // );
 
     let serialized_message = bincode::serialize(&Message::PlayerState(ps)).unwrap();
     _ = socket.try_send(&serialized_message);
@@ -321,6 +378,99 @@ fn render_view(player: &Player, map: &Map, tilesheet: &Tilesheet) {
                     BLACK,
                 );
             }
+        }
+    }
+}
+
+fn render_objects(player: &Player, tilesheet: &Tilesheet, game_objects: &GameObjects) {
+    for i in 0..CAMERA_HEIGHT {
+        for j in 0..CAMERA_WIDTH {
+            let x = player.curr_location.0 as i32 - CAMERA_WIDTH as i32 / 2 + j as i32;
+            let y = player.curr_location.1 as i32 - CAMERA_HEIGHT as i32 / 2 + i as i32;
+
+            if x.is_negative() || y.is_negative() {
+                continue;
+            }
+
+            let (x, y) = (x as usize, y as usize);
+
+            if !game_objects.objects.contains_key(&(x, y)) {
+                continue;
+            }
+
+            let go = &game_objects.objects[&(x, y)];
+            let tile_id = go.into();
+
+            tilesheet.render_tile_at(tile_id, (j as u32, i as u32));
+        }
+    }
+}
+
+fn handle_start_move_object(
+    game_objects: &GameObjects,
+    moving_object: &mut Option<(usize, usize)>,
+    player: &Player,
+) {
+    if moving_object.is_some() {
+        return;
+    }
+
+    if !is_mouse_button_down(MouseButton::Left) {
+        return;
+    };
+
+    let (x, y) = mouse_position();
+
+    assert!(x >= 0. && y >= 0.);
+
+    let (x, y) = ((x / 32.) as usize, (y / 32.) as usize);
+
+    if x >= CAMERA_WIDTH as usize || y >= CAMERA_HEIGHT as usize {
+        return;
+    }
+
+    let player_x = player.curr_location.0 as i32 - CAMERA_WIDTH as i32 / 2;
+    let player_y = player.curr_location.1 as i32 - CAMERA_HEIGHT as i32 / 2;
+
+    let abs_x = player_x + x as i32;
+    let abs_y = player_y + y as i32;
+
+    let (x, y) = (abs_x as usize, abs_y as usize);
+
+    if !game_objects.objects.contains_key(&(x, y)) {
+        return;
+    }
+
+    *moving_object = Some((x, y));
+}
+
+fn handle_end_move_object(
+    game_objects: &mut GameObjects,
+    moving_object: &mut Option<(usize, usize)>,
+    player: &Player,
+) {
+    if moving_object.is_none() || !is_mouse_button_released(MouseButton::Left) {
+        return;
+    }
+
+    let (x, y) = mouse_position();
+    if x < 0. || y < 0. {
+        return;
+    }
+
+    let (x, y) = ((x / TILE_WIDTH) as usize, (y / TILE_HEIGHT) as usize);
+    if x >= CAMERA_WIDTH as usize || y >= CAMERA_HEIGHT as usize {
+        return;
+    }
+
+    let player_x = player.curr_location.0 as i32 - CAMERA_WIDTH as i32 / 2;
+    let player_y = player.curr_location.1 as i32 - CAMERA_HEIGHT as i32 / 2;
+    let (abs_x, abs_y) = (player_x + x as i32, player_y + y as i32);
+    let (x, y) = (abs_x as usize, abs_y as usize);
+
+    if let Some(moving_obj) = moving_object.take() {
+        if let Some(obj) = game_objects.objects.remove(&moving_obj) {
+            game_objects.objects.insert((x, y), obj);
         }
     }
 }

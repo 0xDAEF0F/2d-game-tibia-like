@@ -10,6 +10,7 @@ macroquad = "0.4.13"
 tiled = "0.13.0"
 serde = { version = "1.0.217", features = ["derive"] }
 tokio = { version = "1.43.0", features = ["full"] }
+itertools = "0.14.0"
 
 [profile.dev.package.'*']
 opt-level = 3
