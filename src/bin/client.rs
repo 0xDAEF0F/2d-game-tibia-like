@@ -13,14 +13,14 @@ use tokio::net::UdpSocket;
 use tokio::sync::mpsc::{self, UnboundedReceiver};
 use tokio::task::JoinHandle;
 
-const TILE_HEIGHT: f32 = 32.0;
 const TILE_WIDTH: f32 = 32.0;
+const TILE_HEIGHT: f32 = 32.0;
 
-const CAMERA_HEIGHT: u32 = 10;
 const CAMERA_WIDTH: u32 = 10;
+const CAMERA_HEIGHT: u32 = 10;
 
-const MAP_HEIGHT: u32 = 20;
 const MAP_WIDTH: u32 = 30;
+const MAP_HEIGHT: u32 = 20;
 
 const BASE_MOVE_DELAY: f32 = 0.2;
 const GRID_COLOR: Color = color_u8!(200, 200, 200, 255);
@@ -146,25 +146,14 @@ async fn draw(socket: Arc<UdpSocket>, mut rx: UnboundedReceiver<Message>) {
     };
     let mut other_players = OtherPlayers(HashMap::new());
 
-    let mut loader = Loader::new();
-    let map = loader.load_tmx_map("assets/basic-map.tmx").unwrap();
-    // println!("Map: {map:?}");
-    // println!("{:#?}", map.tilesets()[0].get_tile(0).unwrap());
-    let tileset = map.tilesets()[0].clone();
-    // println!("{tileset:?}");
-    let layer = map.get_layer(0).unwrap();
-    let tilelayer = layer.as_tile_layer().unwrap();
-
-    let tilesheet = Tilesheet::from_tileset(tileset);
-
-    let tile = tilelayer.get_tile(0, 0).unwrap();
-
-    // println!("{tile:#?}");
+    let map = {
+        let mut loader = Loader::new();
+        loader.load_tmx_map("assets/basic-map.tmx").unwrap()
+    };
+    let tilesheet = Tilesheet::from_tileset(map.tilesets()[0].clone());
 
     loop {
         clear_background(color_u8!(31, 31, 31, 0));
-
-        // draw_delimitator_lines();
 
         // Process server messages from channel
         if let Ok(msg) = rx.try_recv() {
@@ -193,10 +182,7 @@ async fn draw(socket: Arc<UdpSocket>, mut rx: UnboundedReceiver<Message>) {
         // Render players
         render_view(&player, &map, &tilesheet);
         player.render();
-        // println!("{player:?}");
         other_players.render(&player);
-
-        // draw_border_grid();
 
         // Handle movement
         handle_player_movement(&mut player, &other_players);
@@ -311,29 +297,6 @@ fn move_player(player: &mut Player, direction: (isize, isize), current_time: f64
     // println!("moving player to {:?}", player.curr_location);
 }
 
-// useful for debugging tiles
-fn draw_delimitator_lines() {
-    let max_x = CAMERA_WIDTH * TILE_WIDTH as u32;
-    let max_y = CAMERA_HEIGHT * TILE_HEIGHT as u32;
-
-    for i in (0..max_x).step_by(TILE_WIDTH as usize) {
-        draw_line(i as f32, 0.0, i as f32, max_y as f32, 1.0, GRID_COLOR);
-    }
-    for j in (0..max_y).step_by(TILE_HEIGHT as usize) {
-        draw_line(0.0, j as f32, max_x as f32, j as f32, 1.0, GRID_COLOR);
-    }
-}
-
-fn draw_border_grid() {
-    let max_x = CAMERA_WIDTH * TILE_WIDTH as u32;
-    let max_y = CAMERA_HEIGHT * TILE_HEIGHT as u32;
-
-    draw_line(0.0, 0.0, max_x as f32, 0.0, 1.0, MAGENTA);
-    draw_line(0.0, 0.0, 0.0, max_y as f32, 1.0, MAGENTA);
-    draw_line(max_x as f32, 0.0, max_x as f32, max_y as f32, 1.0, MAGENTA);
-    draw_line(0.0, max_y as f32, max_x as f32, max_y as f32, 1.0, MAGENTA);
-}
-
 /// Renders the camera around the player
 fn render_view(player: &Player, map: &Map, tilesheet: &Tilesheet) {
     for i in 0..CAMERA_HEIGHT {
@@ -348,7 +311,7 @@ fn render_view(player: &Player, map: &Map, tilesheet: &Tilesheet) {
                 .map(|t| t.id());
 
             if let Some(t_id) = tile_id {
-                tilesheet.draw_tile_id_at(t_id, (j as u32, i as u32));
+                tilesheet.render_tile_at(t_id, (j as u32, i as u32));
             } else {
                 draw_rectangle(
                     j as f32 * TILE_HEIGHT,
@@ -358,13 +321,6 @@ fn render_view(player: &Player, map: &Map, tilesheet: &Tilesheet) {
                     BLACK,
                 );
             }
-            // let color = if x < 0 || y < 0 || x >= MAP_WIDTH as i32 || y >= MAP_HEIGHT as i32 {
-            //     BLACK
-            // } else if (x + y) % 2 == 0 {
-            //     WHITE
-            // } else {
-            //     GRAY
-            // };
         }
     }
 }

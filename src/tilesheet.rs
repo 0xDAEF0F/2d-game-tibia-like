@@ -10,7 +10,7 @@ pub struct Tilesheet {
 
 impl Tilesheet {
     /// Create a tilesheet from a Tiled tileset, loading its texture along the way.
-    pub fn from_tileset(tileset: Arc<Tileset>) -> Self {
+    pub fn from_tileset(tileset: Arc<Tileset>) -> Tilesheet {
         let tileset_image = tileset.image.as_ref().unwrap();
 
         let texture = {
@@ -29,13 +29,12 @@ impl Tilesheet {
         &self.texture
     }
 
-    pub fn draw_tile_id_at(&self, id: u32, location: (u32, u32)) {
-        let (tile_x, tile_y, width, height) = self.tile_rect(id);
-        let (loc_x, loc_y) = location;
+    pub fn render_tile_at(&self, tile_id: u32, (x_coordinate, y_coordinate): (u32, u32)) {
+        let (tile_x, tile_y, width, height) = self.tile_rect(tile_id);
         draw_texture_ex(
             &self.texture,
-            loc_x as f32 * 32.,
-            loc_y as f32 * 32.,
+            x_coordinate as f32 * width,
+            y_coordinate as f32 * height,
             WHITE,
             DrawTextureParams {
                 source: Some(Rect::new(tile_x, tile_y, width, height)),
@@ -45,7 +44,7 @@ impl Tilesheet {
         );
     }
 
-    pub fn tile_rect(&self, id: u32) -> (f32, f32, f32, f32) {
+    fn tile_rect(&self, id: u32) -> (f32, f32, f32, f32) {
         let tile_width = self.tileset.tile_width;
         let tile_height = self.tileset.tile_height;
         let spacing = self.tileset.spacing;
