@@ -2,8 +2,7 @@ use anyhow::Result;
 use bincode;
 use env_logger::Env;
 use game_macroquad_example::*;
-use log::debug;
-use log::info;
+use log::{debug, info};
 use macroquad::Window;
 use macroquad::prelude::*;
 use std::collections::HashMap;
@@ -99,7 +98,7 @@ async fn main() -> Result<()> {
 
     info!("client connected to server at: {}", SERVER_UDP_ADDR);
 
-    let (tx, rx) = mpsc::unbounded_channel::<Message>();
+    let (tx, rx) = mpsc::unbounded_channel::<ServerMsg>();
 
     // Spawn async UDP receive task
     let socket_recv = socket.clone();
@@ -107,7 +106,7 @@ async fn main() -> Result<()> {
     tokio::spawn(async move {
         let mut buf = [0; 1024];
         while let Ok(size) = socket_recv.recv(&mut buf).await {
-            if let Ok(ps) = bincode::deserialize::<Message>(&buf[..size]) {
+            if let Ok(ps) = bincode::deserialize::<ServerMsg>(&buf[..size]) {
                 _ = tx_.send(ps);
             }
         }
@@ -117,7 +116,7 @@ async fn main() -> Result<()> {
     let _: JoinHandle<Result<()>> = tokio::spawn(async move {
         _ = tokio::signal::ctrl_c().await;
 
-        let serialize = bincode::serialize(&Message::Disconnect)?;
+        let serialize = bincode::serialize(&ClientMsg::Disconnect)?;
         _ = socket_.try_send(&serialize);
 
         info!("shutting down client program.");
@@ -134,7 +133,7 @@ async fn main() -> Result<()> {
     Ok(())
 }
 
-async fn draw(socket: Arc<UdpSocket>, mut rx: UnboundedReceiver<Message>) {
+async fn draw(socket: Arc<UdpSocket>, mut rx: UnboundedReceiver<ServerMsg>) {
     let spawn_location = ((MAP_WIDTH / 2) as usize, (MAP_HEIGHT / 2) as usize);
     let mut player = Player {
         id: socket.local_addr().unwrap(),
@@ -157,14 +156,19 @@ async fn draw(socket: Arc<UdpSocket>, mut rx: UnboundedReceiver<Message>) {
     let mut game_objects = create_game_objects();
     let mut moving_object: Option<(usize, usize)> = None;
 
+    let mut fps_logger = FpsLogger::new();
+
+    let mut ping_counter: u32 = 0;
+    let mut last_sent_ping_request = get_time();
+    let mut pings = HashMap::new();
+
     loop {
         let dark_gray = color_u8!(31, 31, 31, 0);
         clear_background(dark_gray);
 
-        // Process server messages from channel
-        if let Ok(msg) = rx.try_recv() {
+        while let Ok(msg) = rx.try_recv() {
             match msg {
-                Message::PlayerState(ps) => {
+                ServerMsg::PlayerState(ps) => {
                     if ps.client_request_id.unwrap() >= player.request_id {
                         player.prev_location = ps.location;
                         player.curr_location = ps.location;
@@ -172,19 +176,20 @@ async fn draw(socket: Arc<UdpSocket>, mut rx: UnboundedReceiver<Message>) {
                         player.prev_location = player.curr_location;
                     }
                 }
-                Message::MoveObject { .. } => unreachable!(),
-                Message::Objects(o) => {
-                    if game_objects != o {
-                        debug!("updating game objects");
-                        game_objects = o;
+                ServerMsg::Pong(ping_id) => {
+                    if let Some(ping) = pings.remove(&ping_id) {
+                        let latency = (get_time() - ping) * 1_000.0;
+                        let latency = format!("{:.2}", latency);
+                        debug!("ping_id: {} = {}ms", ping_id, latency);
                     }
                 }
-                Message::Disconnect => {
-                    info!("sending disconnect to server");
-                    let disc_msg = bincode::serialize(&Message::Disconnect).unwrap();
-                    _ = socket.try_send(&disc_msg);
+                ServerMsg::Objects(o) => {
+                    if !game_objects.eq(&o) {
+                        debug!("updating game objects");
+                        game_objects = o.clone();
+                    }
                 }
-                Message::RestOfPlayers(rp) => {
+                ServerMsg::RestOfPlayers(rp) => {
                     let iter = rp.into_iter().map(|p| (p.id, p.location));
                     let new_other_players = HashMap::from_iter(iter);
                     other_players.0 = new_other_players;
@@ -209,6 +214,21 @@ async fn draw(socket: Arc<UdpSocket>, mut rx: UnboundedReceiver<Message>) {
         // Send player state to server if changed
         send_new_pos_to_server(&mut player, &socket);
 
+        fps_logger.log_fps();
+
+        if get_time() - last_sent_ping_request >= 4.0 {
+            let ping_id = {
+                ping_counter += 1;
+                ping_counter
+            };
+            let ping = get_time();
+            let serialized_ping = bincode::serialize(&ClientMsg::Ping(ping_id)).unwrap();
+            _ = socket.try_send(&serialized_ping);
+            debug!("sending ping request with id: {}", ping_id);
+            pings.insert(ping_id, ping);
+            last_sent_ping_request = get_time();
+        }
+
         next_frame().await;
     }
 }
@@ -227,7 +247,7 @@ fn send_new_pos_to_server(player: &mut Player, socket: &UdpSocket) {
         location: player.curr_location,
     };
 
-    let serialized_message = bincode::serialize(&Message::PlayerState(ps)).unwrap();
+    let serialized_message = bincode::serialize(&ClientMsg::PlayerState(ps)).unwrap();
     _ = socket.try_send(&serialized_message);
 }
 
@@ -435,7 +455,7 @@ fn handle_end_move_object(
             );
 
             game_objects.0.insert((x, y), obj);
-            let msg = bincode::serialize(&Message::MoveObject {
+            let msg = bincode::serialize(&ClientMsg::MoveObject {
                 from: moving_obj,
                 to: (x, y),
             })
