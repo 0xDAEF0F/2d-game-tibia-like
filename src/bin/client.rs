@@ -1,21 +1,18 @@
 use anyhow::Result;
 use bincode;
-use game_macroquad_example::Tilesheet;
-use game_macroquad_example::{Message, PlayerState, SERVER_UDP_ADDR};
-use itertools::Itertools;
+use env_logger::Env;
+use game_macroquad_example::*;
+use log::debug;
+use log::info;
 use macroquad::Window;
 use macroquad::prelude::*;
 use std::collections::HashMap;
 use std::net::SocketAddr;
 use std::sync::Arc;
-use tiled::Map;
-use tiled::{Loader, ObjectData};
+use tiled::{Loader, Map};
 use tokio::net::UdpSocket;
 use tokio::sync::mpsc::{self, UnboundedReceiver};
 use tokio::task::JoinHandle;
-
-const TILE_WIDTH: f32 = 32.0;
-const TILE_HEIGHT: f32 = 32.0;
 
 const CAMERA_WIDTH: u32 = 10;
 const CAMERA_HEIGHT: u32 = 10;
@@ -24,47 +21,6 @@ const MAP_WIDTH: u32 = 30;
 const MAP_HEIGHT: u32 = 20;
 
 const BASE_MOVE_DELAY: f32 = 0.2;
-
-#[derive(Debug, Clone, Copy)]
-pub enum GameObject {
-    FlowerPot { id: u32 },
-}
-
-impl From<u32> for GameObject {
-    fn from(id: u32) -> GameObject {
-        match id {
-            149 => GameObject::FlowerPot { id },
-            id => todo!("{id} not implemented"),
-        }
-    }
-}
-
-impl Into<u32> for &GameObject {
-    fn into(self) -> u32 {
-        match self {
-            GameObject::FlowerPot { id } => *id,
-        }
-    }
-}
-
-#[derive(Debug)]
-struct GameObjects {
-    objects: HashMap<(usize, usize), GameObject>,
-}
-
-impl GameObjects {
-    pub fn from_object_data(a: &[ObjectData]) -> GameObjects {
-        let objects = a.iter().map(|od| {
-            (
-                ((od.x / 32.0) as usize, (od.y / 32.0) as usize),
-                od.tile_data().expect("expected tile data").id().into(),
-            )
-        });
-        let objects: HashMap<(usize, usize), GameObject> = HashMap::from_iter(objects);
-
-        GameObjects { objects }
-    }
-}
 
 #[derive(Debug)]
 struct Player {
@@ -134,11 +90,14 @@ impl OtherPlayers {
 
 #[tokio::main]
 async fn main() -> Result<()> {
+    let env = Env::default().default_filter_or("debug");
+    env_logger::init_from_env(env);
+
     let socket = UdpSocket::bind("0.0.0.0:0").await?;
     let socket = Arc::new(socket);
     socket.connect(SERVER_UDP_ADDR).await?;
 
-    println!("client connected to server at: {}", SERVER_UDP_ADDR);
+    info!("client connected to server at: {}", SERVER_UDP_ADDR);
 
     let (tx, rx) = mpsc::unbounded_channel::<Message>();
 
@@ -161,7 +120,7 @@ async fn main() -> Result<()> {
         let serialize = bincode::serialize(&Message::Disconnect)?;
         _ = socket_.try_send(&serialize);
 
-        println!("shutting down client program.");
+        info!("shutting down client program.");
 
         std::process::exit(0);
     });
@@ -191,24 +150,16 @@ async fn draw(socket: Arc<UdpSocket>, mut rx: UnboundedReceiver<Message>) {
         let mut loader = Loader::new();
         loader.load_tmx_map("assets/basic-map.tmx").unwrap()
     };
+
     let tilesheet = Tilesheet::from_tileset(map.tilesets()[0].clone());
     let objects_tilesheet = Tilesheet::from_tileset(map.tilesets()[1].clone());
 
-    let objects = map
-        .layers()
-        .filter_map(|layer| match layer.layer_type() {
-            tiled::LayerType::Objects(object_layer) => Some(object_layer),
-            _ => None,
-        })
-        .collect_vec();
-
-    let objects = objects[0].object_data();
-    let mut game_objects = GameObjects::from_object_data(objects);
-
+    let mut game_objects = create_game_objects();
     let mut moving_object: Option<(usize, usize)> = None;
 
     loop {
-        clear_background(color_u8!(31, 31, 31, 0));
+        let dark_gray = color_u8!(31, 31, 31, 0);
+        clear_background(dark_gray);
 
         // Process server messages from channel
         if let Ok(msg) = rx.try_recv() {
@@ -221,8 +172,15 @@ async fn draw(socket: Arc<UdpSocket>, mut rx: UnboundedReceiver<Message>) {
                         player.prev_location = player.curr_location;
                     }
                 }
+                Message::MoveObject { .. } => unreachable!(),
+                Message::Objects(o) => {
+                    if game_objects != o {
+                        debug!("updating game objects");
+                        game_objects = o;
+                    }
+                }
                 Message::Disconnect => {
-                    println!("sending disconnect to server");
+                    info!("sending disconnect to server");
                     let disc_msg = bincode::serialize(&Message::Disconnect).unwrap();
                     _ = socket.try_send(&disc_msg);
                 }
@@ -244,10 +202,9 @@ async fn draw(socket: Arc<UdpSocket>, mut rx: UnboundedReceiver<Message>) {
         // Handle movement
         handle_player_movement(&mut player, &other_players);
 
-        // Part A
+        // Object movements
         handle_start_move_object(&game_objects, &mut moving_object, &player);
-
-        handle_end_move_object(&mut game_objects, &mut moving_object, &player);
+        handle_end_move_object(&mut game_objects, &mut moving_object, &player, &socket);
 
         // Send player state to server if changed
         send_new_pos_to_server(&mut player, &socket);
@@ -351,7 +308,7 @@ fn move_player(player: &mut Player, direction: (isize, isize), current_time: f64
     player.curr_location.1 = (player.curr_location.1 as isize + direction.1) as usize;
     player.last_move_timer = current_time;
     player.speed = speed;
-    // println!("moving player to {:?}", player.curr_location);
+    debug!("moving player to {:?}", player.curr_location);
 }
 
 /// Renders the camera around the player
@@ -394,11 +351,11 @@ fn render_objects(player: &Player, tilesheet: &Tilesheet, game_objects: &GameObj
 
             let (x, y) = (x as usize, y as usize);
 
-            if !game_objects.objects.contains_key(&(x, y)) {
+            if !game_objects.0.contains_key(&(x, y)) {
                 continue;
             }
 
-            let go = &game_objects.objects[&(x, y)];
+            let go = &game_objects.0[&(x, y)];
             let tile_id = go.into();
 
             tilesheet.render_tile_at(tile_id, (j as u32, i as u32));
@@ -437,7 +394,7 @@ fn handle_start_move_object(
 
     let (x, y) = (abs_x as usize, abs_y as usize);
 
-    if !game_objects.objects.contains_key(&(x, y)) {
+    if !game_objects.0.contains_key(&(x, y)) {
         return;
     }
 
@@ -448,6 +405,7 @@ fn handle_end_move_object(
     game_objects: &mut GameObjects,
     moving_object: &mut Option<(usize, usize)>,
     player: &Player,
+    socket: &UdpSocket,
 ) {
     if moving_object.is_none() || !is_mouse_button_released(MouseButton::Left) {
         return;
@@ -469,8 +427,20 @@ fn handle_end_move_object(
     let (x, y) = (abs_x as usize, abs_y as usize);
 
     if let Some(moving_obj) = moving_object.take() {
-        if let Some(obj) = game_objects.objects.remove(&moving_obj) {
-            game_objects.objects.insert((x, y), obj);
+        if let Some(obj) = game_objects.0.remove(&moving_obj) {
+            debug!(
+                "sending moving object from {:?} to {:?}",
+                moving_obj,
+                (x, y)
+            );
+
+            game_objects.0.insert((x, y), obj);
+            let msg = bincode::serialize(&Message::MoveObject {
+                from: moving_obj,
+                to: (x, y),
+            })
+            .unwrap();
+            _ = socket.try_send(&msg);
         }
     }
 }
