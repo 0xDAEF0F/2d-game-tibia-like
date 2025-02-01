@@ -1,5 +1,4 @@
 use anyhow::Result;
-use bincode;
 use env_logger::Env;
 use game_macroquad_example::*;
 use log::{debug, info};
@@ -11,7 +10,6 @@ use std::sync::Arc;
 use tiled::{Loader, Map};
 use tokio::net::UdpSocket;
 use tokio::sync::mpsc::{self, UnboundedReceiver};
-use tokio::task::JoinHandle;
 
 const CAMERA_WIDTH: u32 = 10;
 const CAMERA_HEIGHT: u32 = 10;
@@ -54,7 +52,7 @@ impl Player {
             }
         }
 
-        return true;
+        true
     }
 }
 
@@ -79,8 +77,8 @@ impl OtherPlayers {
             }
 
             // determine where to render relative to the player
-            let x = (x as i32 - px as i32 + CAMERA_WIDTH as i32 / 2) as f32 * TILE_WIDTH;
-            let y = (y as i32 - py as i32 + CAMERA_HEIGHT as i32 / 2) as f32 * TILE_HEIGHT;
+            let x = (x - px + CAMERA_WIDTH as i32 / 2) as f32 * TILE_WIDTH;
+            let y = (y - py + CAMERA_HEIGHT as i32 / 2) as f32 * TILE_HEIGHT;
 
             draw_rectangle(x, y, TILE_WIDTH, TILE_HEIGHT, MAGENTA);
         }
@@ -113,11 +111,12 @@ async fn main() -> Result<()> {
     });
 
     let socket_ = socket.clone();
-    let _: JoinHandle<Result<()>> = tokio::spawn(async move {
+    tokio::spawn(async move {
         _ = tokio::signal::ctrl_c().await;
 
-        let serialize = bincode::serialize(&ClientMsg::Disconnect)?;
-        _ = socket_.try_send(&serialize);
+        let serialized =
+            bincode::serialize(&ClientMsg::Disconnect).expect("could not serialize `Disconnect`");
+        _ = socket_.try_send(&serialized);
 
         info!("shutting down client program.");
 
@@ -157,10 +156,7 @@ async fn draw(socket: Arc<UdpSocket>, mut rx: UnboundedReceiver<ServerMsg>) {
     let mut moving_object: Option<(usize, usize)> = None;
 
     let mut fps_logger = FpsLogger::new();
-
-    let mut ping_counter: u32 = 0;
-    let mut last_sent_ping_request = get_time();
-    let mut pings = HashMap::new();
+    let mut ping_monitor = PingMonitor::new();
 
     loop {
         let dark_gray = color_u8!(31, 31, 31, 0);
@@ -177,11 +173,7 @@ async fn draw(socket: Arc<UdpSocket>, mut rx: UnboundedReceiver<ServerMsg>) {
                     }
                 }
                 ServerMsg::Pong(ping_id) => {
-                    if let Some(ping) = pings.remove(&ping_id) {
-                        let latency = (get_time() - ping) * 1_000.0;
-                        let latency = format!("{:.2}", latency);
-                        debug!("ping_id: {} = {}ms", ping_id, latency);
-                    }
+                    ping_monitor.log_ping(&ping_id);
                 }
                 ServerMsg::Objects(o) => {
                     if !game_objects.eq(&o) {
@@ -215,19 +207,7 @@ async fn draw(socket: Arc<UdpSocket>, mut rx: UnboundedReceiver<ServerMsg>) {
         send_new_pos_to_server(&mut player, &socket);
 
         fps_logger.log_fps();
-
-        if get_time() - last_sent_ping_request >= 4.0 {
-            let ping_id = {
-                ping_counter += 1;
-                ping_counter
-            };
-            let ping = get_time();
-            let serialized_ping = bincode::serialize(&ClientMsg::Ping(ping_id)).unwrap();
-            _ = socket.try_send(&serialized_ping);
-            debug!("sending ping request with id: {}", ping_id);
-            pings.insert(ping_id, ping);
-            last_sent_ping_request = get_time();
-        }
+        ping_monitor.ping_server(&socket);
 
         next_frame().await;
     }
@@ -345,7 +325,7 @@ fn render_view(player: &Player, map: &Map, tilesheet: &Tilesheet) {
                 .map(|t| t.id());
 
             if let Some(t_id) = tile_id {
-                tilesheet.render_tile_at(t_id, (j as u32, i as u32));
+                tilesheet.render_tile_at(t_id, (j, i));
             } else {
                 draw_rectangle(
                     j as f32 * TILE_HEIGHT,
@@ -378,7 +358,7 @@ fn render_objects(player: &Player, tilesheet: &Tilesheet, game_objects: &GameObj
             let go = &game_objects.0[&(x, y)];
             let tile_id = go.into();
 
-            tilesheet.render_tile_at(tile_id, (j as u32, i as u32));
+            tilesheet.render_tile_at(tile_id, (j, i));
         }
     }
 }

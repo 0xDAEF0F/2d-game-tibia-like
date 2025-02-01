@@ -3,11 +3,11 @@ use env_logger::Env;
 use game_macroquad_example::*;
 use log::{debug, info};
 use std::collections::HashMap;
+use std::collections::hash_map::Entry;
 use std::net::SocketAddr;
 use std::sync::Arc;
 use tokio::net::{TcpListener, UdpSocket};
 use tokio::sync::{Mutex, mpsc};
-use tokio::task::JoinHandle;
 use tokio::time::{self, Duration};
 
 const SERVER_TICK_RATE: u64 = 16; // ms
@@ -43,7 +43,7 @@ async fn main() -> Result<()> {
     let players_clone = players.clone();
     let objects_clone = game_objects.clone();
     let socket_send = socket.clone();
-    let _: JoinHandle<Result<()>> = tokio::spawn(async move {
+    tokio::spawn(async move {
         let mut interval = time::interval(Duration::from_millis(SERVER_TICK_RATE));
         loop {
             interval.tick().await;
@@ -52,7 +52,8 @@ async fn main() -> Result<()> {
 
             for addr in players.keys().cloned() {
                 let ps = players.get(&addr).cloned().unwrap();
-                let ps_ser = bincode::serialize(&ServerMsg::PlayerState(ps))?;
+                let ps_ser = bincode::serialize(&ServerMsg::PlayerState(ps))
+                    .expect("could not serialize `PlayerState`");
                 _ = socket_send.send_to(&ps_ser, addr).await;
 
                 let rest = players
@@ -65,11 +66,13 @@ async fn main() -> Result<()> {
                     });
 
                 let rest_players = ServerMsg::RestOfPlayers(rest.collect());
-                let rest_players_ser = bincode::serialize(&rest_players)?;
+                let rest_players_ser =
+                    bincode::serialize(&rest_players).expect("could not serialize `RestPlayers`");
                 _ = socket_send.send_to(&rest_players_ser, addr).await;
 
                 let objects = ServerMsg::Objects(game_objects.clone());
-                let encoded_objects = bincode::serialize(&objects)?;
+                let encoded_objects =
+                    bincode::serialize(&objects).expect("could not serialize game objects");
                 _ = socket_send.send_to(&encoded_objects, addr).await;
             }
         }
@@ -111,8 +114,8 @@ async fn main() -> Result<()> {
             ServerChannel::PlayerState(ps) => {
                 let mut players = players.lock().await;
 
-                if !players.contains_key(&ps.id) {
-                    players.insert(ps.id, ps);
+                if let Entry::Vacant(e) = players.entry(ps.id) {
+                    e.insert(ps);
                     continue;
                 }
 

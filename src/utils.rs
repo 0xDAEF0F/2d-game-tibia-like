@@ -1,5 +1,8 @@
+use crate::ClientMsg;
 use log::debug;
 use macroquad::prelude::*;
+use std::{collections::HashMap, sync::Arc};
+use tokio::net::UdpSocket;
 
 const TILE_WIDTH: f32 = 32.0;
 const TILE_HEIGHT: f32 = 32.0;
@@ -29,15 +32,14 @@ pub fn draw_border_grid() {
     draw_line(0.0, max_y as f32, max_x as f32, max_y as f32, 1.0, MAGENTA);
 }
 
+#[derive(Debug, Default)]
 pub struct FpsLogger {
     last_log_time: f64,
 }
 
 impl FpsLogger {
     pub fn new() -> FpsLogger {
-        FpsLogger {
-            last_log_time: f64::default(),
-        }
+        FpsLogger::default()
     }
 
     pub fn log_fps(&mut self) {
@@ -46,6 +48,50 @@ impl FpsLogger {
         if current_time - self.last_log_time >= 10. {
             debug!("{}fps", get_fps());
             self.last_log_time = current_time;
+        }
+    }
+}
+
+const PING_INTERVAL: f64 = 5.0;
+
+#[derive(Debug, Default)]
+pub struct PingMonitor {
+    ping_counter: u32,
+    last_sent_ping_time: f64,
+    pings: HashMap<u32, f64>,
+}
+
+impl PingMonitor {
+    pub fn new() -> PingMonitor {
+        PingMonitor::default()
+    }
+
+    pub fn ping_server(&mut self, socket: &Arc<UdpSocket>) {
+        let curr_time = get_time();
+        if curr_time - self.last_sent_ping_time >= PING_INTERVAL {
+            let ping_id = {
+                self.ping_counter += 1;
+                self.ping_counter
+            };
+
+            let serialized_ping = bincode::serialize(&ClientMsg::Ping(ping_id)).unwrap();
+            _ = socket.try_send(&serialized_ping);
+
+            self.pings.insert(ping_id, curr_time);
+            self.last_sent_ping_time = curr_time;
+
+            debug!("sending ping request with id: {}", ping_id);
+        }
+    }
+
+    pub fn log_ping(&mut self, ping_id: &u32) {
+        if let Some(ping) = self.pings.remove(ping_id) {
+            let now = get_time();
+
+            let latency = (now - ping) * 1_000.0; // ms
+            let latency = format!("{:.2}", latency); // formatted
+
+            debug!("ping for req {} = {}ms", ping_id, latency);
         }
     }
 }

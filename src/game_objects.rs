@@ -54,9 +54,9 @@ impl From<u32> for GameObject {
     }
 }
 
-impl Into<u32> for &GameObject {
-    fn into(self) -> u32 {
-        match self {
+impl From<&GameObject> for u32 {
+    fn from(val: &GameObject) -> Self {
+        match val {
             GameObject::FlowerPot { id } => *id,
         }
     }
