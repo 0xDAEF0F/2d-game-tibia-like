@@ -1,6 +1,6 @@
 use crate::ClientMsg;
+use egui_macroquad::macroquad::prelude::*;
 use log::debug;
-use macroquad::prelude::*;
 use std::{collections::HashMap, sync::Arc};
 use tokio::net::UdpSocket;
 

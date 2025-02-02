@@ -1,4 +1,5 @@
 use anyhow::Result;
+use egui_macroquad::macroquad;
 use env_logger::Env;
 use game_macroquad_example::*;
 use log::{debug, info};
@@ -162,6 +163,12 @@ async fn draw(socket: Arc<UdpSocket>, mut rx: UnboundedReceiver<ServerMsg>) {
         let dark_gray = color_u8!(31, 31, 31, 0);
         clear_background(dark_gray);
 
+        egui_macroquad::ui(|egui_ctx| {
+            egui_macroquad::egui::Window::new("egui ❤ macroquad").show(egui_ctx, |ui| {
+                ui.label("Test");
+            });
+        });
+
         while let Ok(msg) = rx.try_recv() {
             match msg {
                 ServerMsg::PlayerState(ps) => {
@@ -208,6 +215,8 @@ async fn draw(socket: Arc<UdpSocket>, mut rx: UnboundedReceiver<ServerMsg>) {
 
         fps_logger.log_fps();
         ping_monitor.ping_server(&socket);
+
+        egui_macroquad::draw();
 
         next_frame().await;
     }
@@ -322,7 +331,7 @@ fn render_view(player: &Player, map: &Map, tilesheet: &Tilesheet) {
                 .get_layer(0)
                 .and_then(|l| l.as_tile_layer())
                 .and_then(|tl| tl.get_tile(x, y))
-                .map(|t| t.id());
+                .and_then(|t| t.id().into());
 
             if let Some(t_id) = tile_id {
                 tilesheet.render_tile_at(t_id, (j, i));
