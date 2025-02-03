@@ -10,7 +10,9 @@ use std::collections::HashMap;
 use std::net::SocketAddr;
 use std::sync::Arc;
 use tiled::{Loader, Map};
-use tokio::net::UdpSocket;
+use tokio::io::{AsyncReadExt, BufReader};
+use tokio::net::tcp::OwnedWriteHalf;
+use tokio::net::{TcpSocket, UdpSocket};
 use tokio::sync::mpsc::{self, UnboundedReceiver};
 
 const CAMERA_WIDTH: u32 = 18;
@@ -96,7 +98,11 @@ async fn main() -> Result<()> {
     let socket = Arc::new(socket);
     socket.connect(SERVER_UDP_ADDR).await?;
 
-    info!("client connected to server at: {}", SERVER_UDP_ADDR);
+    let tcp_socket = TcpSocket::new_v4()?;
+    let stream = tcp_socket.connect(SERVER_TCP_ADDR.parse()?).await?;
+    let (tcp_read, tcp_write) = stream.into_split();
+
+    info!("client connected to server at: {}", SERVER_TCP_ADDR);
 
     let (tx, rx) = mpsc::unbounded_channel::<ServerMsg>();
 
@@ -108,6 +114,20 @@ async fn main() -> Result<()> {
         while let Ok(size) = socket_recv.recv(&mut buf).await {
             if let Ok(ps) = bincode::deserialize::<ServerMsg>(&buf[..size]) {
                 _ = tx_.send(ps);
+            }
+        }
+    });
+
+    // TCP reader
+    let tx_ = tx.clone();
+    tokio::spawn(async move {
+        let mut buf = [0; 1024];
+        let mut reader = BufReader::new(tcp_read);
+        while let Ok(size) = reader.read(&mut buf).await {
+            let server_msg: ServerMsg = bincode::deserialize(&buf[0..size])
+                .expect("could not deserialize message from server in tcp listener");
+            if let ServerMsg::ChatMsg(msg) = server_msg {
+                _ = tx_.send(ServerMsg::ChatMsg(msg));
             }
         }
     });
@@ -130,12 +150,16 @@ async fn main() -> Result<()> {
         high_dpi: true,
         ..Default::default()
     };
-    Window::from_config(conf, draw(socket, rx));
+    Window::from_config(conf, draw(socket, rx, tcp_write));
 
     Ok(())
 }
 
-async fn draw(socket: Arc<UdpSocket>, mut rx: UnboundedReceiver<ServerMsg>) {
+async fn draw(
+    socket: Arc<UdpSocket>,
+    mut rx: UnboundedReceiver<ServerMsg>,
+    tcp_writer: OwnedWriteHalf,
+) {
     let spawn_location = ((MAP_WIDTH / 2) as usize, (MAP_HEIGHT / 2) as usize);
     let mut player = Player {
         id: socket.local_addr().unwrap(),
@@ -196,6 +220,13 @@ async fn draw(socket: Arc<UdpSocket>, mut rx: UnboundedReceiver<ServerMsg>) {
 
                     if ui.input_mut(|i| i.consume_key(Modifiers::NONE, Key::Enter)) {
                         if !text.is_empty() {
+                            let msg = ClientMsg::ChatMsg(&text);
+                            let serialized = bincode::serialize(&msg).unwrap();
+                            if let Ok(_) = tcp_writer.try_write(&serialized) {
+                                println!("sent chat message: {}", text);
+                            } else {
+                                println!("could not send chat message: {}", text);
+                            }
                             chat.push(text.clone());
                             text.clear();
                             text_edit_output.response.request_focus();
@@ -227,6 +258,9 @@ async fn draw(socket: Arc<UdpSocket>, mut rx: UnboundedReceiver<ServerMsg>) {
                     let iter = rp.into_iter().map(|p| (p.id, p.location));
                     let new_other_players = HashMap::from_iter(iter);
                     other_players.0 = new_other_players;
+                }
+                ServerMsg::ChatMsg(msg) => {
+                    chat.push(msg);
                 }
             }
         }

@@ -99,6 +99,7 @@ async fn main() -> Result<()> {
                         ClientMsg::MoveObject { from, to } => {
                             ServerChannel::MoveObject { from, to }
                         }
+                        ClientMsg::ChatMsg(_) => todo!(),
                         ClientMsg::Ping(_) => unreachable!(),
                     };
                     _ = tx.send(sc);

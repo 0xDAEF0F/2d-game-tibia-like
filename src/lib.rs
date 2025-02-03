@@ -20,7 +20,7 @@ pub const SERVER_TCP_ADDR: &str = "127.0.0.1:8080";
 
 // Client -> Server
 #[derive(Debug, Serialize, Deserialize)]
-pub enum ClientMsg {
+pub enum ClientMsg<'a> {
     PlayerState(PlayerState),
     MoveObject {
         from: (usize, usize),
@@ -28,6 +28,7 @@ pub enum ClientMsg {
     },
     Disconnect,
     Ping(u32),
+    ChatMsg(&'a str),
 }
 
 // Server -> Client
@@ -37,6 +38,7 @@ pub enum ServerMsg {
     RestOfPlayers(Vec<PlayerState>),
     Objects(GameObjects),
     Pong(u32),
+    ChatMsg(String),
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
