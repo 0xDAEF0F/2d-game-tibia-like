@@ -1,10 +1,12 @@
 mod directions;
 mod game_objects;
+mod logger;
 mod tilesheet;
 mod utils;
 
 pub use directions::*;
 pub use game_objects::*;
+pub use logger::*;
 pub use tilesheet::*;
 pub use utils::*;
 

@@ -1,11 +1,10 @@
 use anyhow::Result;
 use egui_macroquad::egui::{self, Key, Modifiers, Pos2};
 use egui_macroquad::macroquad;
-use env_logger::Env;
-use game_macroquad_example::*;
-use log::{debug, info};
+use log::{debug, error, info};
 use macroquad::Window;
 use macroquad::prelude::*;
+use my_mmo::*;
 use std::collections::HashMap;
 use std::net::SocketAddr;
 use std::sync::Arc;
@@ -91,8 +90,7 @@ impl OtherPlayers {
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    let env = Env::default().default_filter_or("debug");
-    env_logger::init_from_env(env);
+    MmoLogger::init("debug");
 
     let socket = UdpSocket::bind("0.0.0.0:0").await?;
     let socket = Arc::new(socket);
@@ -222,10 +220,11 @@ async fn draw(
                         if !text.is_empty() {
                             let msg = ClientMsg::ChatMsg(&text);
                             let serialized = bincode::serialize(&msg).unwrap();
-                            if let Ok(_) = tcp_writer.try_write(&serialized) {
-                                println!("sent chat message: {}", text);
+                            if let Ok(size) = tcp_writer.try_write(&serialized) {
+                                info!("sent {} bytes", size);
+                                info!("sent chat message: {}", text);
                             } else {
-                                println!("could not send chat message: {}", text);
+                                error!("could not send chat message: {}", text);
                             }
                             chat.push(text.clone());
                             text.clear();
@@ -260,6 +259,7 @@ async fn draw(
                     other_players.0 = new_other_players;
                 }
                 ServerMsg::ChatMsg(msg) => {
+                    debug!("pushing a message into the chat");
                     chat.push(msg);
                 }
             }

@@ -1,12 +1,14 @@
 use anyhow::Result;
-use env_logger::Env;
-use game_macroquad_example::*;
-use log::{debug, info};
+use log::{debug, error, info};
+use my_mmo::*;
 use std::collections::HashMap;
 use std::collections::hash_map::Entry;
 use std::net::SocketAddr;
 use std::sync::Arc;
-use tokio::net::{TcpListener, UdpSocket};
+use tokio::io::{AsyncReadExt, AsyncWriteExt};
+use tokio::net::tcp::OwnedWriteHalf;
+use tokio::net::{TcpListener, TcpStream, UdpSocket};
+use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
 use tokio::sync::{Mutex, mpsc};
 use tokio::time::{self, Duration};
 
@@ -18,15 +20,15 @@ enum ServerChannel {
     PlayerState(PlayerState),
     Disconnect(SocketAddr),
     MoveObject { from: Location, to: Location },
+    Msg { from: SocketAddr, msg: String },
 }
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    let env = Env::default().default_filter_or("debug");
-    env_logger::init_from_env(env);
+    MmoLogger::init("debug");
 
     let socket = Arc::new(UdpSocket::bind(SERVER_UDP_ADDR).await?);
-    let _tcp_listener = TcpListener::bind(SERVER_TCP_ADDR).await?;
+    let tcp_listener = TcpListener::bind(SERVER_TCP_ADDR).await?;
 
     info!("Server listening on UDP: {}", SERVER_UDP_ADDR);
     info!("Server listening on TCP: {}", SERVER_TCP_ADDR);
@@ -38,6 +40,71 @@ async fn main() -> Result<()> {
 
     let game_objects = create_game_objects();
     let game_objects = Arc::new(Mutex::new(game_objects));
+
+    let (tx_, rx_) = mpsc::unbounded_channel();
+
+    let connection_writers: HashMap<SocketAddr, OwnedWriteHalf> = HashMap::new();
+    let connection_writers = Arc::new(Mutex::new(connection_writers));
+
+    // accept tcp connections
+    tokio::spawn(async move {
+        while let Ok((socket, addr)) = tcp_listener.accept().await {
+            if let Err(e) = tx_.send((socket, addr)) {
+                error!("could not send the tcp stream to the receiver: {}", e);
+            }
+        }
+    });
+
+    async fn process_connection(
+        mut rx: UnboundedReceiver<(TcpStream, SocketAddr)>,
+        sender_channel: UnboundedSender<ServerChannel>,
+        tcp_write_pool: Arc<Mutex<HashMap<SocketAddr, OwnedWriteHalf>>>,
+    ) {
+        while let Some((socket, addr)) = rx.recv().await {
+            let cloned_server_channel = sender_channel.clone();
+            let (mut tcp_read, tcp_write) = socket.into_split();
+            tcp_write_pool.lock().await.insert(addr, tcp_write);
+            tokio::spawn(async move {
+                let mut buffer = [0; 1024];
+                loop {
+                    match tcp_read.read(&mut buffer).await {
+                        Ok(0) => {
+                            info!("{} closed TCP connnection", addr);
+                            break;
+                        }
+                        Ok(n) => {
+                            if let Ok(msg) = bincode::deserialize::<ClientMsg>(&buffer[..n]) {
+                                match msg {
+                                    ClientMsg::ChatMsg(msg) => {
+                                        let sc = ServerChannel::Msg {
+                                            from: addr,
+                                            msg: msg.to_string(),
+                                        };
+                                        if cloned_server_channel.send(sc).is_err() {
+                                            error!("could not send msg internally?");
+                                        }
+                                    }
+                                    _ => todo!(),
+                                }
+                            } else {
+                                error!("could not deserialize message from {:?}", addr);
+                            }
+                        }
+                        Err(e) => {
+                            eprintln!("failed to read from socket; err = {:?}", e);
+                            break;
+                        }
+                    }
+                }
+            });
+        }
+    }
+
+    tokio::spawn(process_connection(
+        rx_,
+        tx.clone(),
+        connection_writers.clone(),
+    ));
 
     // game loop
     let players_clone = players.clone();
@@ -148,6 +215,23 @@ async fn main() -> Result<()> {
             ServerChannel::Disconnect(addr) => {
                 info!("{addr:?} disconnected");
                 players.lock().await.remove(&addr);
+                connection_writers.lock().await.remove(&addr);
+            }
+            ServerChannel::Msg { from, msg } => {
+                // relay the msg to everyone but the sender
+                let serialized = bincode::serialize(&ServerMsg::ChatMsg(msg))
+                    .expect("could not serialize chat msg");
+
+                let players = players.lock().await;
+                let players = players.keys().filter(|a| from.ne(a));
+
+                for addr in players {
+                    if let Some(writer) = connection_writers.lock().await.get_mut(addr) {
+                        if let Err(e) = writer.write_all(&serialized).await {
+                            error!("failed to send chat message to {}: {:?}", addr, e);
+                        }
+                    }
+                }
             }
         }
     }
