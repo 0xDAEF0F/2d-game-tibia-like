@@ -1,4 +1,5 @@
 use anyhow::Result;
+use egui_macroquad::egui::{self, Key, Modifiers, Pos2};
 use egui_macroquad::macroquad;
 use env_logger::Env;
 use game_macroquad_example::*;
@@ -12,8 +13,8 @@ use tiled::{Loader, Map};
 use tokio::net::UdpSocket;
 use tokio::sync::mpsc::{self, UnboundedReceiver};
 
-const CAMERA_WIDTH: u32 = 10;
-const CAMERA_HEIGHT: u32 = 10;
+const CAMERA_WIDTH: u32 = 18;
+const CAMERA_HEIGHT: u32 = 14;
 
 const MAP_WIDTH: u32 = 30;
 const MAP_HEIGHT: u32 = 20;
@@ -126,6 +127,7 @@ async fn main() -> Result<()> {
 
     let conf = Conf {
         window_title: "MMO Game".to_string(),
+        high_dpi: true,
         ..Default::default()
     };
     Window::from_config(conf, draw(socket, rx));
@@ -159,14 +161,47 @@ async fn draw(socket: Arc<UdpSocket>, mut rx: UnboundedReceiver<ServerMsg>) {
     let mut fps_logger = FpsLogger::new();
     let mut ping_monitor = PingMonitor::new();
 
+    // TODO: refactor this
+    let mut text = "".to_string();
+    let mut chat: Vec<String> = vec![];
+
     loop {
         let dark_gray = color_u8!(31, 31, 31, 0);
         clear_background(dark_gray);
 
         egui_macroquad::ui(|egui_ctx| {
-            egui_macroquad::egui::Window::new("egui ❤ macroquad").show(egui_ctx, |ui| {
-                ui.label("Test");
-            });
+            egui_ctx.set_zoom_factor(2.0);
+            let _window = egui::Window::new("Chat Box")
+                .default_pos(Pos2::new((screen_width()) / 2., screen_height()))
+                .resizable([true, true])
+                .show(egui_ctx, |ui| {
+                    ui.horizontal(|ui| ui.label("Messages"));
+                    ui.add_space(4.);
+
+                    let row_height = ui.text_style_height(&egui::TextStyle::Body);
+                    egui::ScrollArea::vertical()
+                        .max_height(200.)
+                        .stick_to_bottom(true)
+                        .show_rows(ui, row_height, chat.len(), |ui, row_range| {
+                            for (row, msg) in row_range.zip(chat.iter()) {
+                                let text = format!("{}: {}", row + 1, msg);
+                                ui.label(text);
+                            }
+                        });
+
+                    // text input
+                    let text_edit_output = egui::text_edit::TextEdit::singleline(&mut text)
+                        .hint_text("type text here")
+                        .show(ui);
+
+                    if ui.input_mut(|i| i.consume_key(Modifiers::NONE, Key::Enter)) {
+                        if !text.is_empty() {
+                            chat.push(text.clone());
+                            text.clear();
+                            text_edit_output.response.request_focus();
+                        }
+                    }
+                });
         });
 
         while let Ok(msg) = rx.try_recv() {
@@ -387,7 +422,9 @@ fn handle_start_move_object(
 
     let (x, y) = mouse_position();
 
-    assert!(x >= 0. && y >= 0.);
+    if x < 0. || y < 0. {
+        return;
+    }
 
     let (x, y) = ((x / 32.) as usize, (y / 32.) as usize);
 
