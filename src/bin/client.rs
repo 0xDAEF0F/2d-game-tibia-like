@@ -178,7 +178,7 @@ async fn draw(
     let tilesheet = Tilesheet::from_tileset(map.tilesets()[0].clone());
     let objects_tilesheet = Tilesheet::from_tileset(map.tilesets()[1].clone());
 
-    let mut game_objects = create_game_objects();
+    let mut game_objects = GameObjects::new();
     let mut moving_object: Option<(usize, usize)> = None;
 
     let mut fps_logger = FpsLogger::new();

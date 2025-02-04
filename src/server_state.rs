@@ -1,4 +1,4 @@
-use crate::{GameObjects, create_game_objects};
+use crate::GameObjects;
 use std::{collections::HashMap, net::SocketAddr};
 
 pub struct GlobalState {
@@ -10,7 +10,7 @@ impl GlobalState {
     pub fn new() -> GlobalState {
         GlobalState {
             players: HashMap::new(),
-            game_objects: create_game_objects(),
+            game_objects: GameObjects::new(),
         }
     }
 

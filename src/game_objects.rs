@@ -2,33 +2,29 @@ use super::*;
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use tiled::{Loader, ObjectData};
-
-pub fn create_game_objects() -> GameObjects {
-    let map = {
-        let mut loader = Loader::new();
-        loader.load_tmx_map("assets/basic-map.tmx").unwrap()
-    };
-
-    let objects = map
-        .layers()
-        .filter_map(|layer| match layer.layer_type() {
-            tiled::LayerType::Objects(object_layer) => Some(object_layer),
-            _ => None,
-        })
-        .collect_vec();
-
-    let objects = objects[0].object_data();
-
-    GameObjects::from_object_data(objects)
-}
+use tiled::Loader;
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
 pub struct GameObjects(pub HashMap<(usize, usize), GameObject>);
 
 impl GameObjects {
-    pub fn from_object_data(a: &[ObjectData]) -> GameObjects {
-        let objects = a.iter().map(|od| {
+    pub fn new() -> GameObjects {
+        let map = {
+            let mut loader = Loader::new();
+            loader.load_tmx_map("assets/basic-map.tmx").unwrap()
+        };
+
+        let objects = map
+            .layers()
+            .filter_map(|layer| match layer.layer_type() {
+                tiled::LayerType::Objects(object_layer) => Some(object_layer),
+                _ => None,
+            })
+            .collect_vec();
+
+        let objects = objects[0].object_data();
+
+        let objects = objects.iter().map(|od| {
             (
                 ((od.x / TILE_WIDTH) as usize, (od.y / TILE_HEIGHT) as usize),
                 od.tile_data().expect("expected tile data").id().into(),
@@ -38,6 +34,18 @@ impl GameObjects {
 
         GameObjects(objects)
     }
+
+    // pub fn from_object_data(a: &[ObjectData]) -> GameObjects {
+    //     let objects = a.iter().map(|od| {
+    //         (
+    //             ((od.x / TILE_WIDTH) as usize, (od.y / TILE_HEIGHT) as usize),
+    //             od.tile_data().expect("expected tile data").id().into(),
+    //         )
+    //     });
+    //     let objects: HashMap<(usize, usize), GameObject> = HashMap::from_iter(objects);
+
+    //     GameObjects(objects)
+    // }
 }
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]

@@ -38,7 +38,7 @@ async fn main() -> Result<()> {
     let players = HashMap::<SocketAddr, PlayerState>::new();
     let players = Arc::new(Mutex::new(players));
 
-    let game_objects = create_game_objects();
+    let game_objects = GameObjects::new();
     let game_objects = Arc::new(Mutex::new(game_objects));
 
     let (tx_, rx_) = mpsc::unbounded_channel();
