@@ -1,6 +1,7 @@
 mod directions;
 mod game_objects;
 mod logger;
+mod server_state;
 mod tilesheet;
 mod utils;
 

@@ -1,7 +1,7 @@
 use anyhow::Result;
 use egui_macroquad::egui::{self, Key, Modifiers, Pos2};
 use egui_macroquad::macroquad;
-use log::{debug, error, info};
+use log::{debug, error, info, trace};
 use macroquad::Window;
 use macroquad::prelude::*;
 use my_mmo::*;
@@ -10,8 +10,7 @@ use std::net::SocketAddr;
 use std::sync::Arc;
 use tiled::{Loader, Map};
 use tokio::io::{AsyncReadExt, BufReader};
-use tokio::net::tcp::OwnedWriteHalf;
-use tokio::net::{TcpSocket, UdpSocket};
+use tokio::net::{TcpSocket, UdpSocket, tcp::OwnedWriteHalf};
 use tokio::sync::mpsc::{self, UnboundedReceiver};
 
 const CAMERA_WIDTH: u32 = 18;
@@ -122,6 +121,7 @@ async fn main() -> Result<()> {
         let mut buf = [0; 1024];
         let mut reader = BufReader::new(tcp_read);
         while let Ok(size) = reader.read(&mut buf).await {
+            debug!("received msg from server through the tcp reader");
             let server_msg: ServerMsg = bincode::deserialize(&buf[0..size])
                 .expect("could not deserialize message from server in tcp listener");
             if let ServerMsg::ChatMsg(msg) = server_msg {
@@ -143,6 +143,7 @@ async fn main() -> Result<()> {
         std::process::exit(0);
     });
 
+    // Macroquad configuration and window
     let conf = Conf {
         window_title: "MMO Game".to_string(),
         high_dpi: true,

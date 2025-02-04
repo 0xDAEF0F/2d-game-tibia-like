@@ -1,6 +1,6 @@
 use crate::ClientMsg;
 use egui_macroquad::macroquad::prelude::*;
-use log::debug;
+use log::{debug, trace};
 use std::{collections::HashMap, sync::Arc};
 use tokio::net::UdpSocket;
 
@@ -46,7 +46,7 @@ impl FpsLogger {
         let current_time = get_time();
 
         if current_time - self.last_log_time >= 10. {
-            debug!("{}fps", get_fps());
+            trace!("{}fps", get_fps());
             self.last_log_time = current_time;
         }
     }
@@ -80,7 +80,7 @@ impl PingMonitor {
             self.pings.insert(ping_id, curr_time);
             self.last_sent_ping_time = curr_time;
 
-            debug!("sending ping request with id: {}", ping_id);
+            trace!("sending ping request with id: {}", ping_id);
         }
     }
 
@@ -91,7 +91,7 @@ impl PingMonitor {
             let latency = (now - ping) * 1_000.0; // ms
             let latency = format!("{:.2}", latency); // formatted
 
-            debug!("ping for req {} = {}ms", ping_id, latency);
+            trace!("ping for req {} = {}ms", ping_id, latency);
         }
     }
 }

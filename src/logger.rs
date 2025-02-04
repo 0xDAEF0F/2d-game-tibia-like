@@ -8,8 +8,12 @@ impl MmoLogger {
         let mut builder = init_builder();
 
         let log_level = match log_level {
+            "error" => log::LevelFilter::Error,
+            "warn" => log::LevelFilter::Warn,
+            "info" => log::LevelFilter::Info,
             "debug" => log::LevelFilter::Debug,
-            _ => unimplemented!("log level unimplemented"),
+            "trace" => log::LevelFilter::Trace,
+            _ => log::LevelFilter::Info,
         };
 
         builder.filter(None, log_level);
