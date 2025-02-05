@@ -1,13 +1,14 @@
-mod directions;
+mod client;
 mod game_objects;
 mod logger;
+mod server;
 mod server_state;
 mod tilesheet;
 mod utils;
 
-pub use directions::*;
 pub use game_objects::*;
 pub use logger::*;
+pub use server_state::*;
 pub use tilesheet::*;
 pub use utils::*;
 
@@ -21,6 +22,8 @@ pub const SERVER_UDP_ADDR: SocketAddr =
     SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 5000);
 pub const SERVER_TCP_ADDR: &str = "127.0.0.1:8080";
 
+pub type Location = (usize, usize); // (x, y) coordinates
+
 // Client -> Server
 #[derive(Debug, Serialize, Deserialize)]
 pub enum ClientMsg<'a> {
@@ -32,6 +35,7 @@ pub enum ClientMsg<'a> {
     Disconnect,
     Ping(u32),
     ChatMsg(&'a str),
+    Init(String),
 }
 
 // Server -> Client
@@ -42,6 +46,7 @@ pub enum ServerMsg {
     Objects(GameObjects),
     Pong(u32),
     ChatMsg(String),
+    InitOk(usize, Location), // id, location
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]

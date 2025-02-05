@@ -169,6 +169,7 @@ async fn main() -> Result<()> {
                 ClientMsg::MoveObject { from, to } => ServerChannel::MoveObject { from, to },
                 ClientMsg::ChatMsg(_) => unimplemented!("chat messages only allowed through TCP"),
                 ClientMsg::Ping(_) => unreachable!(),
+                ClientMsg::Init(_) => unreachable!(),
             };
 
             _ = tx.send(sc);

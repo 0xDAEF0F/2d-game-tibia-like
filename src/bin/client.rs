@@ -1,7 +1,7 @@
 use anyhow::Result;
 use egui_macroquad::egui::{self, Key, Modifiers, Pos2};
 use egui_macroquad::macroquad;
-use log::{debug, error, info, trace};
+use log::{debug, error, info};
 use macroquad::Window;
 use macroquad::prelude::*;
 use my_mmo::*;
@@ -9,7 +9,8 @@ use std::collections::HashMap;
 use std::net::SocketAddr;
 use std::sync::Arc;
 use tiled::{Loader, Map};
-use tokio::io::{AsyncReadExt, BufReader};
+use tokio::io::{AsyncBufReadExt, AsyncReadExt, AsyncWriteExt, BufReader, stdin};
+use tokio::net::TcpStream;
 use tokio::net::{TcpSocket, UdpSocket, tcp::OwnedWriteHalf};
 use tokio::sync::mpsc::{self, UnboundedReceiver};
 
@@ -263,6 +264,7 @@ async fn draw(
                     debug!("pushing a message into the chat");
                     chat.push(msg);
                 }
+                ServerMsg::InitOk(_, _) => {}
             }
         }
 
@@ -523,5 +525,60 @@ fn handle_end_move_object(
             .unwrap();
             _ = socket.try_send(&msg);
         }
+    }
+}
+
+// return player state, tcp_stream
+#[allow(dead_code)]
+async fn request_new_session_from_server(tcp_stream: &mut TcpStream) -> Result<(usize, Location)> {
+    loop {
+        // request user's username for the session
+        let mut username = String::new();
+        while username.is_empty() {
+            println!("Please enter your desired username for the session.");
+            let mut reader = BufReader::new(stdin()).lines();
+            let Ok(Some(line)) = reader.next_line().await else {
+                println!("invalid username. try again.");
+                continue;
+            };
+            let trimmed = line.trim_ascii();
+            if trimmed.len() < 4 {
+                println!("username too short. try again.");
+                continue;
+            }
+            username = trimmed.to_string();
+        }
+
+        // send the username to the server
+        let Ok(init_msg) = bincode::serialize(&ClientMsg::Init(username)) else {
+            println!("failed to serialize message. try again.");
+            continue;
+        };
+        if tcp_stream.write_all(&init_msg).await.is_err() {
+            println!("failed to send initiation msg to server. try again.");
+            continue;
+        }
+
+        // receive response from server
+        let mut buf = [0; 1024];
+
+        let Ok(bytes_received) = tcp_stream.read(&mut buf).await else {
+            println!("failed to read msg from server. try again.");
+            continue;
+        };
+
+        // deserialize server msg
+        let Ok(sm) = bincode::deserialize::<ServerMsg>(&buf[..bytes_received]) else {
+            println!("failed to deserialize server msg. try again");
+            continue;
+        };
+
+        // make sure response is what's expected
+        let ServerMsg::InitOk(id, location) = sm else {
+            println!("expecting an init ok. retrying everything");
+            continue;
+        };
+
+        return Ok((id, location));
     }
 }

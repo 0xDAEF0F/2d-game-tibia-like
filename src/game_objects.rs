@@ -34,18 +34,6 @@ impl GameObjects {
 
         GameObjects(objects)
     }
-
-    // pub fn from_object_data(a: &[ObjectData]) -> GameObjects {
-    //     let objects = a.iter().map(|od| {
-    //         (
-    //             ((od.x / TILE_WIDTH) as usize, (od.y / TILE_HEIGHT) as usize),
-    //             od.tile_data().expect("expected tile data").id().into(),
-    //         )
-    //     });
-    //     let objects: HashMap<(usize, usize), GameObject> = HashMap::from_iter(objects);
-
-    //     GameObjects(objects)
-    // }
 }
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
