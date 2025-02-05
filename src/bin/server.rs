@@ -14,8 +14,6 @@ use tokio::time::{self, Duration};
 
 const SERVER_TICK_RATE: u64 = 16; // how often the server loops. ms.
 
-type Location = (usize, usize);
-
 enum ServerChannel {
     PlayerState(PlayerState),
     Disconnect(SocketAddr),
@@ -33,7 +31,8 @@ async fn main() -> Result<()> {
     info!("Server listening on UDP: {}", SERVER_UDP_ADDR);
     info!("Server listening on TCP: {}", SERVER_TCP_ADDR);
 
-    let (tx, mut rx) = mpsc::unbounded_channel::<ServerChannel>();
+    let (server_channel_sender, mut server_channel_receiver) =
+        mpsc::unbounded_channel::<ServerChannel>();
 
     let players = HashMap::<SocketAddr, PlayerState>::new();
     let players = Arc::new(Mutex::new(players));
@@ -41,12 +40,12 @@ async fn main() -> Result<()> {
     let game_objects = GameObjects::new();
     let game_objects = Arc::new(Mutex::new(game_objects));
 
-    let (tx_, rx_) = mpsc::unbounded_channel();
+    let (tx_, rx_) = mpsc::unbounded_channel::<(TcpStream, SocketAddr)>();
 
     let tcp_writers_pool: HashMap<SocketAddr, OwnedWriteHalf> = HashMap::new();
     let tcp_writers_pool = Arc::new(Mutex::new(tcp_writers_pool));
 
-    // Accepts TCP connections
+    // Accepts TCP connections. Depends on `tcp_listener` and `tx_`.
     tokio::spawn(async move {
         while let Ok((socket, addr)) = tcp_listener.accept().await {
             info!("accepted TCP connection from: {}", addr);
@@ -103,11 +102,11 @@ async fn main() -> Result<()> {
 
     tokio::spawn(process_connection(
         rx_,
-        tx.clone(),
+        server_channel_sender.clone(),
         tcp_writers_pool.clone(),
     ));
 
-    // game loop
+    // game loop. depends on `rx`, `players`, `game_objects`, and `udp_socket`.
     let players_clone = players.clone();
     let objects_clone = game_objects.clone();
     let udp_socket_ = udp_socket.clone();
@@ -146,7 +145,7 @@ async fn main() -> Result<()> {
         }
     });
 
-    // Receives UDP msgs from clients
+    // Receives UDP msgs from clients. depends on the UDP socket and server channel sender.
     let udp_socket_ = udp_socket.clone();
     tokio::spawn(async move {
         let mut buf = [0; 1024];
@@ -172,11 +171,12 @@ async fn main() -> Result<()> {
                 ClientMsg::Init(_) => unreachable!(),
             };
 
-            _ = tx.send(sc);
+            _ = server_channel_sender.send(sc);
         }
     });
 
-    while let Some(ps) = rx.recv().await {
+    // Receives messages from the server channel sender. depends on `rx`.
+    while let Some(ps) = server_channel_receiver.recv().await {
         match ps {
             ServerChannel::PlayerState(ps) => {
                 let mut players = players.lock().await;
