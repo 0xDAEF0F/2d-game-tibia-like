@@ -1,15 +1,16 @@
-use anyhow::{Context, Result, anyhow};
+use anyhow::{Context, Result, anyhow, bail};
 use itertools::Itertools;
 use log::{debug, error, info, trace};
 use my_mmo::server::ServerChannel;
 use my_mmo::*;
+use serde::Deserialize;
 use std::collections::{HashMap, hash_map::Entry};
 use std::net::SocketAddr;
 use std::sync::Arc;
 use std::sync::Mutex as SMutex;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::tcp::{OwnedReadHalf, OwnedWriteHalf};
-use tokio::net::{TcpListener, UdpSocket};
+use tokio::net::{TcpListener, TcpStream, UdpSocket};
 use tokio::sync::mpsc::UnboundedSender;
 use tokio::sync::{Mutex, mpsc};
 use tokio::time::{self, Duration};
@@ -41,6 +42,7 @@ async fn main() -> Result<()> {
 
     // Accepts TCP connections. Depends on `tcp_listener` and `tx_`.
     let tcp_writers_pool_clone = Arc::clone(&tcp_writers_pool);
+    let players_clone = Arc::clone(&players);
     let server_channel_sender_clone = server_channel_sender.clone();
     let _task1_handle = tokio::spawn(async move {
         use tokio_stream::wrappers::TcpListenerStream;
@@ -53,14 +55,47 @@ async fn main() -> Result<()> {
 
             info!("accepted TCP connection from: {peer_addr}",);
 
-            let (tcp_read, tcp_write) = tcp_stream.into_split();
+            fn validate_client(
+                mut tcp_stream: TcpStream,
+                tcp_writers_pool: Arc<SMutex<HashMap<SocketAddr, OwnedWriteHalf>>>,
+                players: Arc<Mutex<HashMap<SocketAddr, PlayerState>>>,
+                server_channel_sender: UnboundedSender<ServerChannel>,
+            ) {
+                // discard errors for now
+                _ = tokio::spawn(async move {
+                    let mut buf = [0; 1024];
+                    let size = tcp_stream.read(&mut buf).await?;
+                    let c_msg: ClientMsg = bincode::deserialize(&buf[..size])?;
+                    let ClientMsg::Init(_username) = c_msg else {
+                        bail!("invalid client message");
+                    };
 
-            tcp_writers_pool_clone
-                .lock()
-                .map_err(|_| anyhow!("failed to acquire lock on tcp_writers_pool"))?
-                .insert(peer_addr, tcp_write);
+                    println!("username is: {}", _username);
+                    // TODO: check if the username is available/valid in the players store
+                    _ = players.lock().await;
 
-            handle_tcp_reader(tcp_read, server_channel_sender_clone.clone());
+                    let init_ok = ServerMsg::InitOk(42, (0, 0));
+                    let s_init_ok = bincode::serialize(&init_ok)?;
+                    let _bytes_sent = tcp_stream.write(&s_init_ok).await?;
+
+                    let (tcp_read, tcp_write) = tcp_stream.into_split();
+
+                    tcp_writers_pool
+                        .lock()
+                        .map_err(|_| anyhow!("failed to acquire lock on tcp_writers_pool"))?
+                        .insert(tcp_read.peer_addr()?, tcp_write);
+
+                    handle_tcp_reader(tcp_read, server_channel_sender.clone());
+
+                    anyhow::Ok(())
+                });
+            }
+            validate_client(
+                tcp_stream,
+                tcp_writers_pool_clone.clone(),
+                players_clone.clone(),
+                server_channel_sender_clone.clone(),
+            );
         }
 
         anyhow::Ok(())

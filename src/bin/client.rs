@@ -26,8 +26,8 @@ const BASE_MOVE_DELAY: f32 = 0.2;
 struct Player {
     id: SocketAddr,
     request_id: u64,
-    curr_location: (usize, usize),
-    prev_location: (usize, usize),
+    curr_location: Location,
+    prev_location: Location,
     last_move_timer: f64,
     speed: f32,
 }
@@ -97,7 +97,12 @@ async fn main() -> Result<()> {
     socket.connect(SERVER_UDP_ADDR).await?;
 
     let tcp_socket = TcpSocket::new_v4()?;
-    let stream = tcp_socket.connect(SERVER_TCP_ADDR.parse()?).await?;
+    let mut stream = tcp_socket.connect(SERVER_TCP_ADDR.parse()?).await?;
+
+    let username = request_new_session_from_server(&mut stream).await?;
+
+    println!("username: {} was accepted by the server.", username);
+
     let (tcp_read, tcp_write) = stream.into_split();
 
     info!("client connected to server at: {}", SERVER_TCP_ADDR);
@@ -528,9 +533,8 @@ fn handle_end_move_object(
     }
 }
 
-// return player state, tcp_stream
-#[allow(dead_code)]
-async fn request_new_session_from_server(tcp_stream: &mut TcpStream) -> Result<(usize, Location)> {
+// returns username for now
+async fn request_new_session_from_server(tcp_stream: &mut TcpStream) -> Result<String> {
     loop {
         // request user's username for the session
         let mut username = String::new();
@@ -550,7 +554,7 @@ async fn request_new_session_from_server(tcp_stream: &mut TcpStream) -> Result<(
         }
 
         // send the username to the server
-        let Ok(init_msg) = bincode::serialize(&ClientMsg::Init(username)) else {
+        let Ok(init_msg) = bincode::serialize(&ClientMsg::Init(username.clone())) else {
             println!("failed to serialize message. try again.");
             continue;
         };
@@ -574,11 +578,11 @@ async fn request_new_session_from_server(tcp_stream: &mut TcpStream) -> Result<(
         };
 
         // make sure response is what's expected
-        let ServerMsg::InitOk(id, location) = sm else {
+        let ServerMsg::InitOk(_id, _location) = sm else {
             println!("expecting an init ok. retrying everything");
             continue;
         };
 
-        return Ok((id, location));
+        return Ok(username);
     }
 }
