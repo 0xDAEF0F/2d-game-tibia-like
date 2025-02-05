@@ -1,7 +1,7 @@
 mod client;
 mod game_objects;
 mod logger;
-mod server;
+pub mod server;
 mod server_state;
 mod tilesheet;
 mod utils;

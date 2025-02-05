@@ -1,25 +1,21 @@
-use anyhow::Result;
+use anyhow::{Context, Result, anyhow};
 use itertools::Itertools;
 use log::{debug, error, info, trace};
+use my_mmo::server::ServerChannel;
 use my_mmo::*;
 use std::collections::{HashMap, hash_map::Entry};
 use std::net::SocketAddr;
 use std::sync::Arc;
+use std::sync::Mutex as SMutex;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
-use tokio::net::tcp::OwnedWriteHalf;
-use tokio::net::{TcpListener, TcpStream, UdpSocket};
-use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
+use tokio::net::tcp::{OwnedReadHalf, OwnedWriteHalf};
+use tokio::net::{TcpListener, UdpSocket};
+use tokio::sync::mpsc::UnboundedSender;
 use tokio::sync::{Mutex, mpsc};
 use tokio::time::{self, Duration};
+use tokio_stream::StreamExt;
 
 const SERVER_TICK_RATE: u64 = 16; // how often the server loops. ms.
-
-enum ServerChannel {
-    PlayerState(PlayerState),
-    Disconnect(SocketAddr),
-    MoveObject { from: Location, to: Location },
-    ChatMsg { from: SocketAddr, msg: String },
-}
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -40,77 +36,41 @@ async fn main() -> Result<()> {
     let game_objects = GameObjects::new();
     let game_objects = Arc::new(Mutex::new(game_objects));
 
-    let (tx_, rx_) = mpsc::unbounded_channel::<(TcpStream, SocketAddr)>();
-
     let tcp_writers_pool: HashMap<SocketAddr, OwnedWriteHalf> = HashMap::new();
-    let tcp_writers_pool = Arc::new(Mutex::new(tcp_writers_pool));
+    let tcp_writers_pool = Arc::new(SMutex::new(tcp_writers_pool));
 
     // Accepts TCP connections. Depends on `tcp_listener` and `tx_`.
-    tokio::spawn(async move {
-        while let Ok((socket, addr)) = tcp_listener.accept().await {
-            info!("accepted TCP connection from: {}", addr);
-            if let Err(e) = tx_.send((socket, addr)) {
-                error!("could not send the tcp stream to the receiver: {}", e);
-            }
+    let tcp_writers_pool_clone = Arc::clone(&tcp_writers_pool);
+    let server_channel_sender_clone = server_channel_sender.clone();
+    let _task1_handle = tokio::spawn(async move {
+        use tokio_stream::wrappers::TcpListenerStream;
+        let mut iter = TcpListenerStream::new(tcp_listener);
+
+        while let Ok(tcp_stream) = iter.next().await.context("tcp stream ended")? {
+            let peer_addr = tcp_stream
+                .peer_addr()
+                .context("failed resolve `peer_addr()` of `TcpStream`")?;
+
+            info!("accepted TCP connection from: {peer_addr}",);
+
+            let (tcp_read, tcp_write) = tcp_stream.into_split();
+
+            tcp_writers_pool_clone
+                .lock()
+                .map_err(|_| anyhow!("failed to acquire lock on tcp_writers_pool"))?
+                .insert(peer_addr, tcp_write);
+
+            handle_tcp_reader(tcp_read, server_channel_sender_clone.clone());
         }
+
+        anyhow::Ok(())
     });
-
-    async fn process_connection(
-        mut rx: UnboundedReceiver<(TcpStream, SocketAddr)>,
-        sender_channel: UnboundedSender<ServerChannel>,
-        tcp_write_pool: Arc<Mutex<HashMap<SocketAddr, OwnedWriteHalf>>>,
-    ) {
-        while let Some((socket, addr)) = rx.recv().await {
-            let cloned_server_channel = sender_channel.clone();
-            let (mut tcp_read, tcp_write) = socket.into_split();
-            tcp_write_pool.lock().await.insert(addr, tcp_write);
-            tokio::spawn(async move {
-                let mut buffer = [0; 1024];
-                loop {
-                    match tcp_read.read(&mut buffer).await {
-                        Ok(0) => {
-                            info!("{} closed TCP connnection", addr);
-                            break;
-                        }
-                        Ok(n) => {
-                            if let Ok(msg) = bincode::deserialize::<ClientMsg>(&buffer[..n]) {
-                                match msg {
-                                    ClientMsg::ChatMsg(msg) => {
-                                        let sc = ServerChannel::ChatMsg {
-                                            from: addr,
-                                            msg: msg.to_string(),
-                                        };
-                                        if cloned_server_channel.send(sc).is_err() {
-                                            error!("could not send msg internally?");
-                                        }
-                                    }
-                                    _ => todo!(),
-                                }
-                            } else {
-                                error!("could not deserialize message from {:?}", addr);
-                            }
-                        }
-                        Err(e) => {
-                            eprintln!("failed to read from socket; err = {:?}", e);
-                            break;
-                        }
-                    }
-                }
-            });
-        }
-    }
-
-    tokio::spawn(process_connection(
-        rx_,
-        server_channel_sender.clone(),
-        tcp_writers_pool.clone(),
-    ));
 
     // game loop. depends on `rx`, `players`, `game_objects`, and `udp_socket`.
     let players_clone = players.clone();
     let objects_clone = game_objects.clone();
     let udp_socket_ = udp_socket.clone();
-    tokio::spawn(async move {
+    let _task2_handle = tokio::spawn(async move {
         let mut interval = time::interval(Duration::from_millis(SERVER_TICK_RATE));
         loop {
             interval.tick().await;
@@ -147,7 +107,7 @@ async fn main() -> Result<()> {
 
     // Receives UDP msgs from clients. depends on the UDP socket and server channel sender.
     let udp_socket_ = udp_socket.clone();
-    tokio::spawn(async move {
+    let _task3_handle = tokio::spawn(async move {
         let mut buf = [0; 1024];
         while let Ok((size, src)) = udp_socket_.recv_from(&mut buf).await {
             let Ok(msg) = bincode::deserialize::<ClientMsg>(&buf[..size]) else {
@@ -214,7 +174,7 @@ async fn main() -> Result<()> {
             ServerChannel::Disconnect(addr) => {
                 info!("{addr:?} disconnected");
                 players.lock().await.remove(&addr);
-                tcp_writers_pool.lock().await.remove(&addr);
+                tcp_writers_pool.lock().unwrap().remove(&addr);
             }
             ServerChannel::ChatMsg { from, msg } => {
                 debug!("received chat msg: \"{}\" from: {}", msg, from);
@@ -225,7 +185,7 @@ async fn main() -> Result<()> {
 
                 // TODO: be more efficient here
                 let addresses_to_send = {
-                    let pool = tcp_writers_pool.lock().await;
+                    let pool = tcp_writers_pool.lock().unwrap();
                     let addresses = pool.keys().filter(|a| from.ne(a));
                     addresses.cloned().collect_vec()
                 };
@@ -235,7 +195,7 @@ async fn main() -> Result<()> {
                     addresses_to_send.len()
                 );
 
-                let mut tcp_pool = tcp_writers_pool.lock().await;
+                let mut tcp_pool = tcp_writers_pool.lock().unwrap();
                 for addr in addresses_to_send {
                     if let Some(writer) = tcp_pool.get_mut(&addr) {
                         if let Err(e) = writer.write_all(&serialized).await {
@@ -248,4 +208,35 @@ async fn main() -> Result<()> {
     }
 
     Ok(())
+}
+
+fn handle_tcp_reader(
+    mut tcp_read: OwnedReadHalf,
+    server_channel_sender: UnboundedSender<ServerChannel>,
+) {
+    tokio::spawn(async move {
+        // TODO: make sure this is enough buffer size
+        let mut buffer = [0; 1024];
+        loop {
+            match tcp_read.read(&mut buffer).await {
+                // TODO: cleanup
+                Ok(0) => {
+                    info!("{:?} closed TCP connnection", tcp_read.peer_addr());
+                    break;
+                }
+                Ok(n) => {
+                    let msg = bincode::deserialize::<ClientMsg>(&buffer[..n])
+                        .context("could not deserialize msg from client. closing connection.")?;
+                    server_channel_sender
+                        .send(ServerChannel::from_client_msg(msg, tcp_read.peer_addr()?))
+                        .context("could not send message to server channel")?;
+                }
+                Err(e) => {
+                    eprintln!("failed to read from socket; err = {:?}", e);
+                    break;
+                }
+            }
+        }
+        anyhow::Ok(())
+    });
 }
