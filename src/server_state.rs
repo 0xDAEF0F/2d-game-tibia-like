@@ -45,7 +45,8 @@ pub struct Player {
     udp_address: Option<SocketAddr>,
     tcp_address: Option<SocketAddr>,
     // game related
-    location: Location, // grid position. TODO: add y axis for levels
+    player_name: String,
+    location: Location, // TODO: add z axis
 }
 
 impl Player {

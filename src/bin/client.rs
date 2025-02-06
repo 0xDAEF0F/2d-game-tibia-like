@@ -25,6 +25,7 @@ const BASE_MOVE_DELAY: f32 = 0.2;
 #[derive(Debug)]
 struct Player {
     id: SocketAddr,
+    username: String,
     request_id: u64,
     curr_location: Location,
     prev_location: Location,
@@ -38,6 +39,11 @@ impl Player {
         let x = (CAMERA_WIDTH / 2) as f32 * TILE_WIDTH;
         let y = (CAMERA_HEIGHT / 2) as f32 * TILE_HEIGHT;
         draw_rectangle(x, y, TILE_WIDTH, TILE_HEIGHT, RED);
+
+        // TODO: refactor this and need to center the text correctly above the player
+        // draw its username as text right above the player
+        // let text_dimensions = measure_text(&self.username, None, 20, 1.0);
+        draw_text(&self.username, x, y - 10.0, 20.0, BLACK);
     }
 
     pub fn can_move((x, y): (i32, i32), op: &OtherPlayers) -> bool {
@@ -155,7 +161,17 @@ async fn main() -> Result<()> {
         high_dpi: true,
         ..Default::default()
     };
-    Window::from_config(conf, draw(socket, rx, tcp_write));
+    let spawn_location = ((MAP_WIDTH / 2) as usize, (MAP_HEIGHT / 2) as usize);
+    let player = Player {
+        id: socket.local_addr().unwrap(),
+        username,
+        request_id: 0,
+        speed: BASE_MOVE_DELAY,
+        curr_location: spawn_location,
+        prev_location: spawn_location,
+        last_move_timer: 0.0,
+    };
+    Window::from_config(conf, draw(socket, rx, tcp_write, player));
 
     Ok(())
 }
@@ -164,16 +180,8 @@ async fn draw(
     socket: Arc<UdpSocket>,
     mut rx: UnboundedReceiver<ServerMsg>,
     tcp_writer: OwnedWriteHalf,
+    mut player: Player,
 ) {
-    let spawn_location = ((MAP_WIDTH / 2) as usize, (MAP_HEIGHT / 2) as usize);
-    let mut player = Player {
-        id: socket.local_addr().unwrap(),
-        request_id: 0,
-        speed: BASE_MOVE_DELAY,
-        curr_location: spawn_location,
-        prev_location: spawn_location,
-        last_move_timer: 0.0,
-    };
     let mut other_players = OtherPlayers(HashMap::new());
 
     let map = {
@@ -533,7 +541,7 @@ fn handle_end_move_object(
     }
 }
 
-// returns username for now
+// TODO: modify to return user id and spawn location as well as username
 async fn request_new_session_from_server(tcp_stream: &mut TcpStream) -> Result<String> {
     loop {
         // request user's username for the session
