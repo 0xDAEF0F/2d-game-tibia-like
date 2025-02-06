@@ -233,7 +233,7 @@ async fn draw(
 
                     if ui.input_mut(|i| i.consume_key(Modifiers::NONE, Key::Enter)) {
                         if !text.is_empty() {
-                            let msg = ClientMsg::ChatMsg(&text);
+                            let msg = ClientMsg::ChatMsg(text.clone());
                             let serialized = bincode::serialize(&msg).unwrap();
                             if let Ok(size) = tcp_writer.try_write(&serialized) {
                                 info!("sent {} bytes", size);

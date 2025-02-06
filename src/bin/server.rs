@@ -33,6 +33,11 @@ async fn main() -> Result<()> {
     let (server_channel_sender, mut server_channel_receiver) =
         mpsc::unbounded_channel::<ServerChannel>();
 
+    // HashMap<player_id, (tcp_socket_addr, udp_socket_addr)> ???
+    // HashMap<socket_addr, player_id> ???
+    // what if a tcp user disconnects? what if a udp user does not send keep alives?
+    let address_mapping: HashMap<SocketAddr, usize> = HashMap::new(); // addr -> player_id
+
     let players = HashMap::<SocketAddr, PlayerState>::new();
     let players = Arc::new(Mutex::new(players));
 
@@ -113,6 +118,9 @@ async fn main() -> Result<()> {
     let _task3_handle = tokio::spawn(async move {
         let mut buf = [0; 1024];
         while let Ok((size, src)) = udp_socket_.recv_from(&mut buf).await {
+            // we need to retrieve a user id from the socket address
+            // can the user just tell us his user id?
+
             let Ok(msg) = bincode::deserialize::<ClientMsg>(&buf[..size]) else {
                 debug!("failed to deserialize message from {src:?}");
                 continue;
@@ -175,6 +183,7 @@ async fn main() -> Result<()> {
                 }
             }
             ServerChannel::Disconnect(addr) => {
+                // TODO: cleanup the player state from tcp/udp.
                 info!("{addr:?} disconnected");
                 players.lock().await.remove(&addr);
                 tcp_writers_pool.lock().unwrap().remove(&addr);
@@ -220,13 +229,17 @@ fn handle_tcp_reader(
     server_channel_sender: UnboundedSender<ServerChannel>,
 ) {
     tokio::spawn(async move {
-        // TODO: make sure this is enough buffer size
+        let peer_addr = tcp_read.peer_addr()?;
+        // make sure this is enough buffer size
         let mut buffer = [0; 1024];
         loop {
             match tcp_read.read(&mut buffer).await {
-                // TODO: cleanup
-                Ok(0) => {
-                    info!("{:?} closed TCP connnection", tcp_read.peer_addr());
+                Ok(0) | Err(_) => {
+                    info!("{:?} closed TCP connnection or tcp read failed.", peer_addr);
+                    let disconnect = ServerChannel::Disconnect(peer_addr);
+                    server_channel_sender
+                        .send(disconnect)
+                        .context("could not send message to server channel")?;
                     break;
                 }
                 Ok(n) => {
@@ -235,10 +248,6 @@ fn handle_tcp_reader(
                     server_channel_sender
                         .send(ServerChannel::from_client_msg(msg, tcp_read.peer_addr()?))
                         .context("could not send message to server channel")?;
-                }
-                Err(e) => {
-                    eprintln!("failed to read from socket; err = {:?}", e);
-                    break;
                 }
             }
         }
@@ -253,8 +262,7 @@ fn validate_client(
     players: Arc<Mutex<HashMap<SocketAddr, PlayerState>>>,
     server_channel_sender: UnboundedSender<ServerChannel>,
 ) {
-    // discard errors for now
-    _ = tokio::spawn(async move {
+    tokio::spawn(async move {
         let mut buf = [0; 1024];
         let size = tcp_stream.read(&mut buf).await?;
         let c_msg: ClientMsg = bincode::deserialize(&buf[..size])?;

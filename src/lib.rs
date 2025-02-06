@@ -26,15 +26,12 @@ pub type Location = (usize, usize); // (x, y) coordinates
 
 // Client -> Server
 #[derive(Debug, Serialize, Deserialize)]
-pub enum ClientMsg<'a> {
+pub enum ClientMsg {
     PlayerState(PlayerState),
-    MoveObject {
-        from: (usize, usize),
-        to: (usize, usize),
-    },
+    MoveObject { from: Location, to: Location },
     Disconnect,
     Ping(u32),
-    ChatMsg(&'a str),
+    ChatMsg(String),
     Init(String),
 }
 
