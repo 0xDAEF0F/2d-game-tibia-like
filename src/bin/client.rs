@@ -15,6 +15,7 @@ use tokio::io::{AsyncBufReadExt, AsyncReadExt, AsyncWriteExt, BufReader, stdin};
 use tokio::net::TcpStream;
 use tokio::net::{TcpSocket, UdpSocket, tcp::OwnedWriteHalf};
 use tokio::sync::mpsc::{self, UnboundedReceiver};
+use uuid::Uuid;
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -27,7 +28,7 @@ async fn main() -> Result<()> {
     let tcp_socket = TcpSocket::new_v4()?;
     let mut stream = tcp_socket.connect(SERVER_TCP_ADDR.parse()?).await?;
 
-    let username = request_new_session_from_server(&mut stream).await?;
+    let (username, user_id, spawn_location) = request_new_session_from_server(&mut stream).await?;
 
     println!("username: {} was accepted by the server.", username);
 
@@ -83,9 +84,8 @@ async fn main() -> Result<()> {
         high_dpi: true,
         ..Default::default()
     };
-    let spawn_location = ((MAP_WIDTH / 2) as usize, (MAP_HEIGHT / 2) as usize);
     let player = Player {
-        id: socket.local_addr().unwrap(),
+        id: user_id,
         username,
         request_id: 0,
         speed: BASE_MOVE_DELAY,
@@ -115,7 +115,7 @@ async fn draw(
     let objects_tilesheet = Tilesheet::from_tileset(map.tilesets()[1].clone());
 
     let mut game_objects = GameObjects::new();
-    let mut moving_object: Option<(usize, usize)> = None;
+    let mut moving_object: Option<Location> = None;
 
     let mut fps_logger = FpsLogger::new();
     let mut ping_monitor = PingMonitor::new();
@@ -133,10 +133,13 @@ async fn draw(
 
         while let Ok(msg) = rx.try_recv() {
             match msg {
-                ServerMsg::PlayerState(ps) => {
-                    if ps.client_request_id.unwrap() >= player.request_id.into() {
-                        player.prev_location = ps.location;
-                        player.curr_location = ps.location;
+                ServerMsg::PlayerState {
+                    client_request_id,
+                    location,
+                } => {
+                    if client_request_id >= player.request_id {
+                        player.prev_location = location;
+                        player.curr_location = location;
                     } else {
                         player.prev_location = player.curr_location;
                     }
@@ -151,7 +154,7 @@ async fn draw(
                     }
                 }
                 ServerMsg::RestOfPlayers(rp) => {
-                    let iter = rp.into_iter().map(|p| (p.id, p.location));
+                    let iter = rp.into_iter().map(|p| (p.username, p.location));
                     let new_other_players = HashMap::from_iter(iter);
                     other_players.0 = new_other_players;
                 }
@@ -159,7 +162,9 @@ async fn draw(
                     debug!("pushing a message into the chat");
                     mmo_context.user_chat.push(msg);
                 }
-                ServerMsg::InitOk(_, _) => {}
+                ServerMsg::InitOk(_, _) | ServerMsg::InitErr(_) => {
+                    unreachable!("this messages are not supposed to arrive at this point in time")
+                }
             }
         }
 
@@ -194,16 +199,16 @@ fn send_new_pos_to_server(player: &mut Player, socket: &UdpSocket) {
         return;
     }
 
-    let ps = PlayerState {
+    let ps = ClientMsg::PlayerState {
         id: player.id,
         client_request_id: {
             player.request_id += 1;
-            Some(player.request_id.into())
+            player.request_id
         },
         location: player.curr_location,
     };
 
-    let serialized_message = bincode::serialize(&ClientMsg::PlayerState(ps)).unwrap();
+    let serialized_message = bincode::serialize(&ps).unwrap();
     _ = socket.try_send(&serialized_message);
 }
 
@@ -280,8 +285,8 @@ fn handle_double_key_movement(player: &mut Player, op: &OtherPlayers, current_ti
 
 fn move_player(player: &mut Player, direction: (isize, isize), current_time: f64, speed: f32) {
     player.prev_location = player.curr_location;
-    player.curr_location.0 = (player.curr_location.0 as isize + direction.0) as usize;
-    player.curr_location.1 = (player.curr_location.1 as isize + direction.1) as usize;
+    player.curr_location.0 = (player.curr_location.0 as isize + direction.0) as u32;
+    player.curr_location.1 = (player.curr_location.1 as isize + direction.1) as u32;
     player.last_move_timer = current_time;
     player.speed = speed;
     debug!("moving player to {:?}", player.curr_location);
@@ -325,7 +330,7 @@ fn render_objects(player: &Player, tilesheet: &Tilesheet, game_objects: &GameObj
                 continue;
             }
 
-            let (x, y) = (x as usize, y as usize);
+            let (x, y) = (x as u32, y as u32);
 
             if !game_objects.0.contains_key(&(x, y)) {
                 continue;
@@ -341,7 +346,7 @@ fn render_objects(player: &Player, tilesheet: &Tilesheet, game_objects: &GameObj
 
 fn handle_start_move_object(
     game_objects: &GameObjects,
-    moving_object: &mut Option<(usize, usize)>,
+    moving_object: &mut Option<Location>,
     player: &Player,
 ) {
     if moving_object.is_some() {
@@ -370,7 +375,7 @@ fn handle_start_move_object(
     let abs_x = player_x + x as i32;
     let abs_y = player_y + y as i32;
 
-    let (x, y) = (abs_x as usize, abs_y as usize);
+    let (x, y) = (abs_x as u32, abs_y as u32);
 
     if !game_objects.0.contains_key(&(x, y)) {
         return;
@@ -381,7 +386,7 @@ fn handle_start_move_object(
 
 fn handle_end_move_object(
     game_objects: &mut GameObjects,
-    moving_object: &mut Option<(usize, usize)>,
+    moving_object: &mut Option<Location>,
     player: &Player,
     socket: &UdpSocket,
 ) {
@@ -402,7 +407,7 @@ fn handle_end_move_object(
     let player_x = player.curr_location.0 as i32 - CAMERA_WIDTH as i32 / 2;
     let player_y = player.curr_location.1 as i32 - CAMERA_HEIGHT as i32 / 2;
     let (abs_x, abs_y) = (player_x + x as i32, player_y + y as i32);
-    let (x, y) = (abs_x as usize, abs_y as usize);
+    let (x, y) = (abs_x as u32, abs_y as u32);
 
     if let Some(moving_obj) = moving_object.take() {
         if let Some(obj) = game_objects.0.remove(&moving_obj) {
@@ -423,8 +428,9 @@ fn handle_end_move_object(
     }
 }
 
-// TODO: modify to return user id and spawn location as well as username
-async fn request_new_session_from_server(tcp_stream: &mut TcpStream) -> Result<String> {
+async fn request_new_session_from_server(
+    tcp_stream: &mut TcpStream,
+) -> Result<(String, Uuid, Location)> {
     loop {
         // request user's username for the session
         let mut username = String::new();
@@ -467,12 +473,18 @@ async fn request_new_session_from_server(tcp_stream: &mut TcpStream) -> Result<S
             continue;
         };
 
+        if let ServerMsg::InitErr(err) = sm {
+            println!("{}", err);
+            println!("retrying everything.");
+            continue;
+        }
+
         // make sure response is what's expected
-        let ServerMsg::InitOk(_id, _location) = sm else {
+        let ServerMsg::InitOk(id, location) = sm else {
             println!("expecting an init ok. retrying everything");
             continue;
         };
 
-        return Ok(username);
+        return Ok((username, id, location));
     }
 }

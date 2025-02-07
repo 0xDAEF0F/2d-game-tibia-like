@@ -1,10 +1,12 @@
-use anyhow::{Context, Result, anyhow, bail};
+use anyhow::{Context, Result, bail};
+use egui_macroquad::macroquad::prelude::warn;
 use itertools::Itertools;
 use log::{debug, error, info, trace};
+use my_mmo::server::Player;
 use my_mmo::server::ServerChannel;
 use my_mmo::server::constants::*;
 use my_mmo::*;
-use std::collections::{HashMap, hash_map::Entry};
+use std::collections::HashMap;
 use std::net::SocketAddr;
 use std::sync::Arc;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
@@ -15,6 +17,7 @@ use tokio::sync::{Mutex, mpsc};
 use tokio::task::JoinHandle;
 use tokio::time::{self, Duration};
 use tokio_stream::StreamExt;
+use uuid::Uuid;
 
 // TODO: the server is supposed to map tcp/udp clients from their socket
 // addresses to their player_id/username.
@@ -33,20 +36,18 @@ async fn main() -> Result<()> {
     MmoLogger::init("debug");
 
     let udp_socket = Arc::new(UdpSocket::bind(SERVER_UDP_ADDR).await?);
-    let tcp_listener = TcpListener::bind(SERVER_TCP_ADDR).await?;
-
     info!("Server listening on UDP: {}", SERVER_UDP_ADDR);
+
+    let tcp_listener = TcpListener::bind(SERVER_TCP_ADDR).await?;
     info!("Server listening on TCP: {}", SERVER_TCP_ADDR);
 
     let (server_channel_sender, mut server_channel_receiver) =
         mpsc::unbounded_channel::<ServerChannel>();
 
-    // HashMap<player_id, (tcp_socket_addr, udp_socket_addr)> ???
-    // HashMap<socket_addr, player_id> ???
-    // what if a tcp user disconnects? what if a udp user does not send keep alives?
-    // let address_mapping: HashMap<SocketAddr, usize> = HashMap::new(); // addr -> player_id
+    let address_mapping: HashMap<SocketAddr, Uuid> = HashMap::new(); // addr -> player_id
+    let address_mapping = Arc::new(Mutex::new(address_mapping));
 
-    let players = HashMap::<SocketAddr, PlayerState>::new();
+    let players = HashMap::<Uuid, Player>::new();
     let players = Arc::new(Mutex::new(players));
 
     let game_objects = GameObjects::new();
@@ -63,10 +64,8 @@ async fn main() -> Result<()> {
         use tokio_stream::wrappers::TcpListenerStream;
         let mut iter = TcpListenerStream::new(tcp_listener);
 
-        while let Ok(tcp_stream) = iter.next().await.context("tcp stream ended")? {
-            let peer_addr = tcp_stream
-                .peer_addr()
-                .context("failed resolve `peer_addr()` of `TcpStream`")?;
+        while let Ok(tcp_stream) = iter.next().await.context("stream ended")? {
+            let peer_addr = tcp_stream.peer_addr()?;
 
             info!("accepted TCP connection from: {peer_addr}",);
 
@@ -93,30 +92,32 @@ async fn main() -> Result<()> {
             let players = players_clone.lock().await;
             let game_objects = objects_clone.lock().await;
 
-            for addr in players.keys().cloned() {
-                let ps = players.get(&addr).cloned().unwrap();
-                let ps_ser = bincode::serialize(&ServerMsg::PlayerState(ps))
-                    .expect("could not serialize `PlayerState`");
-                _ = udp_socket_.send_to(&ps_ser, addr).await;
+            for player in players.values() {
+                let Some(udp_socket) = player.udp_socket else {
+                    continue;
+                };
+                let ps = ServerMsg::PlayerState {
+                    location: player.location,
+                    client_request_id: player.client_request_id,
+                };
+                let ser = bincode::serialize(&ps)?;
+                _ = udp_socket_.send_to(&ser, udp_socket).await;
 
                 let rest = players
                     .values()
-                    .filter(|ps| ps.id != addr)
-                    .map(|ps| PlayerState {
-                        id: ps.id,
-                        client_request_id: None,
+                    .filter(|ps| ps.id != player.id)
+                    .map(|ps| OtherPlayer {
+                        username: ps.username.clone(),
                         location: ps.location,
                     });
 
                 let rest_players = ServerMsg::RestOfPlayers(rest.collect());
-                let rest_players_ser =
-                    bincode::serialize(&rest_players).expect("could not serialize `RestPlayers`");
-                _ = udp_socket_.send_to(&rest_players_ser, addr).await;
+                let rest_players_ser = bincode::serialize(&rest_players)?;
+                _ = udp_socket_.send_to(&rest_players_ser, udp_socket).await;
 
                 let objects = ServerMsg::Objects(game_objects.clone());
-                let encoded_objects =
-                    bincode::serialize(&objects).expect("could not serialize game objects");
-                _ = udp_socket_.send_to(&encoded_objects, addr).await;
+                let encoded_objects = bincode::serialize(&objects)?;
+                _ = udp_socket_.send_to(&encoded_objects, udp_socket).await;
             }
         }
     });
@@ -143,7 +144,15 @@ async fn main() -> Result<()> {
 
             let sc = match msg {
                 ClientMsg::Disconnect => ServerChannel::Disconnect(src),
-                ClientMsg::PlayerState(ps) => ServerChannel::PlayerState(ps),
+                ClientMsg::PlayerState {
+                    id,
+                    client_request_id,
+                    location,
+                } => ServerChannel::PlayerState {
+                    id,
+                    client_request_id,
+                    location,
+                },
                 ClientMsg::MoveObject { from, to } => ServerChannel::MoveObject { from, to },
                 ClientMsg::ChatMsg(_) => unimplemented!("chat messages only allowed through TCP"),
                 ClientMsg::Ping(_) => unreachable!(),
@@ -160,45 +169,65 @@ async fn main() -> Result<()> {
         // Receives messages from the server channel sender. depends on `rx`.
         while let Some(ps) = server_channel_receiver.recv().await {
             match ps {
-                ServerChannel::PlayerState(ps) => {
+                ServerChannel::PlayerState {
+                    id,
+                    client_request_id,
+                    location,
+                } => {
                     let mut players = players.lock().await;
 
-                    if let Entry::Vacant(e) = players.entry(ps.id) {
-                        e.insert(ps);
+                    let Some(player) = players.get_mut(&id) else {
+                        error!("player does not yet exist");
+                        continue;
+                    };
+
+                    if client_request_id <= player.client_request_id {
+                        trace!("received outdated player state from {}", player.username);
                         continue;
                     }
 
-                    let player = players.get_mut(&ps.id).unwrap();
-
-                    if ps.client_request_id <= player.client_request_id {
-                        continue;
-                    }
-
-                    if ps.location == player.location {
+                    if location == player.location {
+                        trace!("player {} did not move. skipping.", player.username);
                         continue;
                     }
 
                     debug!(
-                        "received player state from {:?} at {:?}",
-                        ps.id, ps.location
+                        "received player state from {} at {:?}",
+                        player.username, location
                     );
 
-                    // still needs some form of validation to check if the location is valid
-                    player.client_request_id = ps.client_request_id;
-                    player.location = ps.location;
+                    // TODO: check if location is valid
+                    player.client_request_id = client_request_id;
+                    player.location = location;
                 }
                 ServerChannel::MoveObject { from, to } => {
-                    debug!("received move object from {:?} to {:?}", from, to);
                     let mut game_objects = game_objects.lock().await;
                     if let Some(obj) = game_objects.0.remove(&from) {
+                        debug!("moving object from {:?} to {:?}", from, to);
                         game_objects.0.insert(to, obj);
                     }
                 }
+                // TODO: this arm needs further revisions
                 ServerChannel::Disconnect(addr) => {
-                    // TODO: cleanup the player state from tcp/udp.
                     info!("{addr:?} disconnected");
-                    players.lock().await.remove(&addr);
-                    tcp_writers_pool.lock().await.remove(&addr);
+
+                    let mut address_mapping = address_mapping.lock().await;
+                    let Some(user_id) = address_mapping.remove(&addr) else {
+                        warn!("{} was not in the address lookup table", addr);
+                        continue;
+                    };
+
+                    let mut players = players.lock().await;
+                    let Some(player) = players.remove(&user_id) else {
+                        warn!("user {} was not in the players map", user_id);
+                        continue;
+                    };
+
+                    let mut pool = tcp_writers_pool.lock().await;
+                    let Some(tcp_writer) = pool.remove(&addr) else {
+                        warn!("user {} was not in the writers pool", user_id);
+                        continue;
+                    };
                 }
                 ServerChannel::ChatMsg { from, msg } => {
                     debug!("received chat msg: \"{}\" from: {}", msg, from);
@@ -284,25 +313,53 @@ fn handle_tcp_reader(
 fn validate_client(
     mut tcp_stream: TcpStream,
     tcp_writers_pool: Arc<Mutex<HashMap<SocketAddr, OwnedWriteHalf>>>,
-    players: Arc<Mutex<HashMap<SocketAddr, PlayerState>>>,
+    players: Arc<Mutex<HashMap<Uuid, Player>>>,
     server_channel_sender: UnboundedSender<ServerChannel>,
 ) {
     tokio::spawn(async move {
         let mut buf = [0; 1024];
         let size = tcp_stream.read(&mut buf).await?;
         let c_msg: ClientMsg = bincode::deserialize(&buf[..size])?;
-        let ClientMsg::Init(_username) = c_msg else {
+        let ClientMsg::Init(username) = c_msg else {
             bail!("invalid client message");
         };
 
-        println!("submitted username is: {}", _username);
+        println!("submitted username is: {}", username);
 
-        // TODO: check if the username is available/valid in the players store
-        _ = players.lock().await;
+        let is_username_taken = (players.lock().await)
+            .values()
+            .any(|p| p.username == username);
 
-        let init_ok = ServerMsg::InitOk(42, (0, 0));
+        if is_username_taken {
+            let str = format!("username: {} is taken.", username);
+
+            info!("{}", str);
+
+            let msg = ServerMsg::InitErr(str);
+            let s_msg = bincode::serialize(&msg).unwrap();
+
+            _ = tcp_stream.write(&s_msg).await;
+
+            return anyhow::Ok(());
+        }
+
+        let player_id = Uuid::new_v4();
+        let spawn_location = (0, 0);
+
+        let player = Player {
+            id: player_id,
+            username,
+            location: spawn_location,
+            client_request_id: 0,
+            udp_socket: None,
+            tcp_socket: Some(tcp_stream.peer_addr()?),
+        };
+
+        (players.lock().await).insert(player_id, player);
+
+        let init_ok = ServerMsg::InitOk(player_id, spawn_location);
         let s_init_ok = bincode::serialize(&init_ok)?;
-        let _bytes_sent = tcp_stream.write(&s_init_ok).await?;
+        tcp_stream.write(&s_init_ok).await?;
 
         let (tcp_read, tcp_write) = tcp_stream.into_split();
 

@@ -3,10 +3,11 @@ use crate::client::constants::*;
 use crate::constants::*;
 use egui_macroquad::macroquad::prelude::*;
 use std::{collections::HashMap, net::SocketAddr};
+use uuid::Uuid;
 
 #[derive(Debug)]
 pub struct Player {
-    pub id: SocketAddr,
+    pub id: Uuid,
     pub username: String,
     pub request_id: u32,
     pub curr_location: Location,
@@ -38,7 +39,7 @@ impl Player {
         }
 
         for &(px, py) in op.0.values() {
-            if (px, py) == (x as usize, y as usize) {
+            if (px, py) == (x as u32, y as u32) {
                 return false;
             }
         }
@@ -47,7 +48,7 @@ impl Player {
     }
 }
 
-pub struct OtherPlayers(pub HashMap<SocketAddr, (usize, usize)>);
+pub struct OtherPlayers(pub HashMap<String, Location>);
 
 impl OtherPlayers {
     pub fn render(&self, player: &Player) {

@@ -1,11 +1,11 @@
-use crate::constants::*;
+use crate::{Location, constants::*};
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use tiled::Loader;
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
-pub struct GameObjects(pub HashMap<(usize, usize), GameObject>);
+pub struct GameObjects(pub HashMap<Location, GameObject>);
 
 impl GameObjects {
     pub fn new() -> GameObjects {
@@ -26,11 +26,11 @@ impl GameObjects {
 
         let objects = objects.iter().map(|od| {
             (
-                ((od.x / TILE_WIDTH) as usize, (od.y / TILE_HEIGHT) as usize),
+                ((od.x / TILE_WIDTH) as u32, (od.y / TILE_HEIGHT) as u32),
                 od.tile_data().expect("expected tile data").id().into(),
             )
         });
-        let objects: HashMap<(usize, usize), GameObject> = HashMap::from_iter(objects);
+        let objects: HashMap<Location, GameObject> = HashMap::from_iter(objects);
 
         GameObjects(objects)
     }

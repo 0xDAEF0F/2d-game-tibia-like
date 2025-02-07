@@ -13,14 +13,22 @@ pub use utils::*;
 
 use serde::{Deserialize, Serialize};
 use std::net::SocketAddr;
+use uuid::Uuid;
 
-pub type Location = (usize, usize); // (x, y) coordinates
+pub type Location = (u32, u32); // (x, y) coordinates
 
 // Client -> Server
 #[derive(Debug, Serialize, Deserialize)]
 pub enum ClientMsg {
-    PlayerState(PlayerState),
-    MoveObject { from: Location, to: Location },
+    PlayerState {
+        id: Uuid,
+        location: Location,
+        client_request_id: u32,
+    },
+    MoveObject {
+        from: Location,
+        to: Location,
+    },
     Disconnect,
     Ping(u32),
     ChatMsg(String),
@@ -30,17 +38,20 @@ pub enum ClientMsg {
 // Server -> Client
 #[derive(Debug, Serialize, Deserialize)]
 pub enum ServerMsg {
-    PlayerState(PlayerState),
-    RestOfPlayers(Vec<PlayerState>),
+    PlayerState {
+        location: Location,
+        client_request_id: u32,
+    },
+    RestOfPlayers(Vec<OtherPlayer>),
     Objects(GameObjects),
     Pong(u32),
     ChatMsg(String),
-    InitOk(usize, Location), // id, location
+    InitOk(Uuid, Location),
+    InitErr(String),
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct PlayerState {
-    pub id: SocketAddr,                 // TODO: use another identifier
-    pub client_request_id: Option<u64>, // TODO: use another identifier
-    pub location: (usize, usize),       // (x, y)
+#[derive(Debug, Serialize, Deserialize)]
+pub struct OtherPlayer {
+    pub username: String,
+    pub location: Location,
 }
