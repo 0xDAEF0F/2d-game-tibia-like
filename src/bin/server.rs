@@ -7,17 +7,26 @@ use my_mmo::*;
 use std::collections::{HashMap, hash_map::Entry};
 use std::net::SocketAddr;
 use std::sync::Arc;
-use std::sync::Mutex as SMutex;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::tcp::{OwnedReadHalf, OwnedWriteHalf};
 use tokio::net::{TcpListener, TcpStream, UdpSocket};
 use tokio::sync::mpsc::UnboundedSender;
 use tokio::sync::{Mutex, mpsc};
+use tokio::task::JoinHandle;
 use tokio::time::{self, Duration};
 use tokio_stream::StreamExt;
 
 // TODO: the server is supposed to map tcp/udp clients from their socket
 // addresses to their player_id/username.
+
+// 1. Client establishes connection with server through TCP
+//    and server sends a session id to the client
+// 2. When client sends his UDP datagram he also sends the sessions id
+//    so server can link both addresses.
+// 3. If the client disconnects through TCP. server destroys both UDP
+//    and TCP as well as information that is no longer needed about the player.
+// 4. If the client stops sending keep alives or pings for x amount of time
+//    the server destroys the user session
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -35,7 +44,7 @@ async fn main() -> Result<()> {
     // HashMap<player_id, (tcp_socket_addr, udp_socket_addr)> ???
     // HashMap<socket_addr, player_id> ???
     // what if a tcp user disconnects? what if a udp user does not send keep alives?
-    let address_mapping: HashMap<SocketAddr, usize> = HashMap::new(); // addr -> player_id
+    // let address_mapping: HashMap<SocketAddr, usize> = HashMap::new(); // addr -> player_id
 
     let players = HashMap::<SocketAddr, PlayerState>::new();
     let players = Arc::new(Mutex::new(players));
@@ -44,13 +53,13 @@ async fn main() -> Result<()> {
     let game_objects = Arc::new(Mutex::new(game_objects));
 
     let tcp_writers_pool: HashMap<SocketAddr, OwnedWriteHalf> = HashMap::new();
-    let tcp_writers_pool = Arc::new(SMutex::new(tcp_writers_pool));
+    let tcp_writers_pool = Arc::new(Mutex::new(tcp_writers_pool));
 
     // Accepts TCP connections. Depends on `tcp_listener` and `tx_`.
     let tcp_writers_pool_clone = Arc::clone(&tcp_writers_pool);
     let players_clone = Arc::clone(&players);
     let server_channel_sender_clone = server_channel_sender.clone();
-    let _task1_handle = tokio::spawn(async move {
+    let task1_handle = tokio::spawn(async move {
         use tokio_stream::wrappers::TcpListenerStream;
         let mut iter = TcpListenerStream::new(tcp_listener);
 
@@ -77,7 +86,7 @@ async fn main() -> Result<()> {
     let players_clone = players.clone();
     let objects_clone = game_objects.clone();
     let udp_socket_ = udp_socket.clone();
-    let _task2_handle = tokio::spawn(async move {
+    let task2_handle: JoinHandle<Result<()>> = tokio::spawn(async move {
         let mut interval = time::interval(Duration::from_millis(SERVER_TICK_RATE));
         loop {
             interval.tick().await;
@@ -114,7 +123,7 @@ async fn main() -> Result<()> {
 
     // Receives UDP msgs from clients. depends on the UDP socket and server channel sender.
     let udp_socket_ = udp_socket.clone();
-    let _task3_handle = tokio::spawn(async move {
+    let task3_handle = tokio::spawn(async move {
         let mut buf = [0; 1024];
         while let Ok((size, src)) = udp_socket_.recv_from(&mut buf).await {
             // we need to retrieve a user id from the socket address
@@ -143,80 +152,97 @@ async fn main() -> Result<()> {
 
             _ = server_channel_sender.send(sc);
         }
+
+        anyhow::Ok(())
     });
 
-    // Receives messages from the server channel sender. depends on `rx`.
-    while let Some(ps) = server_channel_receiver.recv().await {
-        match ps {
-            ServerChannel::PlayerState(ps) => {
-                let mut players = players.lock().await;
+    let task4_handle = tokio::spawn(async move {
+        // Receives messages from the server channel sender. depends on `rx`.
+        while let Some(ps) = server_channel_receiver.recv().await {
+            match ps {
+                ServerChannel::PlayerState(ps) => {
+                    let mut players = players.lock().await;
 
-                if let Entry::Vacant(e) = players.entry(ps.id) {
-                    e.insert(ps);
-                    continue;
+                    if let Entry::Vacant(e) = players.entry(ps.id) {
+                        e.insert(ps);
+                        continue;
+                    }
+
+                    let player = players.get_mut(&ps.id).unwrap();
+
+                    if ps.client_request_id <= player.client_request_id {
+                        continue;
+                    }
+
+                    if ps.location == player.location {
+                        continue;
+                    }
+
+                    debug!(
+                        "received player state from {:?} at {:?}",
+                        ps.id, ps.location
+                    );
+
+                    // still needs some form of validation to check if the location is valid
+                    player.client_request_id = ps.client_request_id;
+                    player.location = ps.location;
                 }
-
-                let player = players.get_mut(&ps.id).unwrap();
-
-                if ps.client_request_id <= player.client_request_id {
-                    continue;
+                ServerChannel::MoveObject { from, to } => {
+                    debug!("received move object from {:?} to {:?}", from, to);
+                    let mut game_objects = game_objects.lock().await;
+                    if let Some(obj) = game_objects.0.remove(&from) {
+                        game_objects.0.insert(to, obj);
+                    }
                 }
-
-                if ps.location == player.location {
-                    continue;
+                ServerChannel::Disconnect(addr) => {
+                    // TODO: cleanup the player state from tcp/udp.
+                    info!("{addr:?} disconnected");
+                    players.lock().await.remove(&addr);
+                    tcp_writers_pool.lock().await.remove(&addr);
                 }
+                ServerChannel::ChatMsg { from, msg } => {
+                    debug!("received chat msg: \"{}\" from: {}", msg, from);
 
-                debug!(
-                    "received player state from {:?} at {:?}",
-                    ps.id, ps.location
-                );
-                // still needs some form of validation to check if the location is valid
-                player.client_request_id = ps.client_request_id;
-                player.location = ps.location;
-            }
-            ServerChannel::MoveObject { from, to } => {
-                debug!("received move object from {:?} to {:?}", from, to);
-                let mut game_objects = game_objects.lock().await;
-                if let Some(obj) = game_objects.0.remove(&from) {
-                    game_objects.0.insert(to, obj);
-                }
-            }
-            ServerChannel::Disconnect(addr) => {
-                // TODO: cleanup the player state from tcp/udp.
-                info!("{addr:?} disconnected");
-                players.lock().await.remove(&addr);
-                tcp_writers_pool.lock().unwrap().remove(&addr);
-            }
-            ServerChannel::ChatMsg { from, msg } => {
-                debug!("received chat msg: \"{}\" from: {}", msg, from);
+                    // relay the msg to everyone but the sender
+                    let serialized = bincode::serialize(&ServerMsg::ChatMsg(msg))
+                        .expect("could not serialize chat msg");
 
-                // relay the msg to everyone but the sender
-                let serialized = bincode::serialize(&ServerMsg::ChatMsg(msg))
-                    .expect("could not serialize chat msg");
+                    // TODO: be more efficient here
+                    let addresses_to_send = {
+                        let pool = tcp_writers_pool.lock().await;
+                        let addresses = pool.keys().filter(|a| from.ne(a));
+                        addresses.cloned().collect_vec()
+                    };
 
-                // TODO: be more efficient here
-                let addresses_to_send = {
-                    let pool = tcp_writers_pool.lock().unwrap();
-                    let addresses = pool.keys().filter(|a| from.ne(a));
-                    addresses.cloned().collect_vec()
-                };
+                    debug!(
+                        "sending chat message to {} players",
+                        addresses_to_send.len()
+                    );
 
-                debug!(
-                    "sending chat message to {} players",
-                    addresses_to_send.len()
-                );
-
-                let mut tcp_pool = tcp_writers_pool.lock().unwrap();
-                for addr in addresses_to_send {
-                    if let Some(writer) = tcp_pool.get_mut(&addr) {
-                        if let Err(e) = writer.write_all(&serialized).await {
-                            error!("failed to send chat message to {}: {:?}", addr, e);
+                    let mut tcp_pool = tcp_writers_pool.lock().await;
+                    for addr in addresses_to_send {
+                        if let Some(writer) = tcp_pool.get_mut(&addr) {
+                            if let Err(e) = writer.write_all(&serialized).await {
+                                error!("failed to send chat message to {}: {:?}", addr, e);
+                            }
                         }
                     }
                 }
             }
         }
-    }
+
+        anyhow::Ok(())
+    });
+
+    // not a fan of how this looks but it works ok.
+    // it bubbles up to main on the first error and
+    // exits the program with an error.
+    tokio::try_join!(
+        async { task1_handle.await? },
+        async { task2_handle.await? },
+        async { task3_handle.await? },
+        async { task4_handle.await? },
+    )?;
 
     Ok(())
 }
@@ -257,7 +283,7 @@ fn handle_tcp_reader(
 
 fn validate_client(
     mut tcp_stream: TcpStream,
-    tcp_writers_pool: Arc<SMutex<HashMap<SocketAddr, OwnedWriteHalf>>>,
+    tcp_writers_pool: Arc<Mutex<HashMap<SocketAddr, OwnedWriteHalf>>>,
     players: Arc<Mutex<HashMap<SocketAddr, PlayerState>>>,
     server_channel_sender: UnboundedSender<ServerChannel>,
 ) {
@@ -282,7 +308,7 @@ fn validate_client(
 
         tcp_writers_pool
             .lock()
-            .map_err(|_| anyhow!("failed to acquire lock on tcp_writers_pool"))?
+            .await
             .insert(tcp_read.peer_addr()?, tcp_write);
 
         handle_tcp_reader(tcp_read, server_channel_sender.clone());

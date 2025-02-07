@@ -1,7 +1,6 @@
 use anyhow::Result;
-use egui_macroquad::egui::{self, Key, Modifiers, Pos2};
 use egui_macroquad::macroquad;
-use log::{debug, error, info};
+use log::{debug, info};
 use macroquad::Window;
 use macroquad::prelude::*;
 use my_mmo::client::constants::*;

@@ -15,6 +15,7 @@ log = "0.4.25"
 egui-macroquad = { git = "https://github.com/0xDAEF0F/egui-macroquad", branch = "master" }
 chrono = "0.4.39"
 tokio-stream = { version = "0.1.17", features = ["full"] }
+uuid = { version = "1.13.1", features = ["v4", "fast-rng", "macro-diagnostics", "serde"] }
 
 [profile.dev.package.'*']
 opt-level = 3
