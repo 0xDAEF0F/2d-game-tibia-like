@@ -2,6 +2,7 @@ use anyhow::{Context, Result, anyhow, bail};
 use itertools::Itertools;
 use log::{debug, error, info, trace};
 use my_mmo::server::ServerChannel;
+use my_mmo::server::constants::*;
 use my_mmo::*;
 use std::collections::{HashMap, hash_map::Entry};
 use std::net::SocketAddr;
@@ -14,8 +15,6 @@ use tokio::sync::mpsc::UnboundedSender;
 use tokio::sync::{Mutex, mpsc};
 use tokio::time::{self, Duration};
 use tokio_stream::StreamExt;
-
-const SERVER_TICK_RATE: u64 = 16; // how often the server loops. ms.
 
 // TODO: the server is supposed to map tcp/udp clients from their socket
 // addresses to their player_id/username.

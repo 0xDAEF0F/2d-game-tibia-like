@@ -4,95 +4,18 @@ use egui_macroquad::macroquad;
 use log::{debug, error, info};
 use macroquad::Window;
 use macroquad::prelude::*;
+use my_mmo::client::constants::*;
+use my_mmo::client::{MmoContext, OtherPlayers, Player, make_egui};
+use my_mmo::constants::*;
+use my_mmo::server::constants::*;
 use my_mmo::*;
 use std::collections::HashMap;
-use std::net::SocketAddr;
 use std::sync::Arc;
 use tiled::{Loader, Map};
 use tokio::io::{AsyncBufReadExt, AsyncReadExt, AsyncWriteExt, BufReader, stdin};
 use tokio::net::TcpStream;
 use tokio::net::{TcpSocket, UdpSocket, tcp::OwnedWriteHalf};
 use tokio::sync::mpsc::{self, UnboundedReceiver};
-
-const CAMERA_WIDTH: u32 = 18;
-const CAMERA_HEIGHT: u32 = 14;
-
-const MAP_WIDTH: u32 = 30;
-const MAP_HEIGHT: u32 = 20;
-
-const BASE_MOVE_DELAY: f32 = 0.2;
-
-#[derive(Debug)]
-struct Player {
-    id: SocketAddr,
-    username: String,
-    request_id: u64,
-    curr_location: Location,
-    prev_location: Location,
-    last_move_timer: f64,
-    speed: f32,
-}
-
-impl Player {
-    /// Renders the player in the middle of the viewport.
-    pub fn render(&self) {
-        let x = (CAMERA_WIDTH / 2) as f32 * TILE_WIDTH;
-        let y = (CAMERA_HEIGHT / 2) as f32 * TILE_HEIGHT;
-        draw_rectangle(x, y, TILE_WIDTH, TILE_HEIGHT, RED);
-
-        // TODO: refactor this and need to center the text correctly above the player
-        // draw its username as text right above the player
-        // let text_dimensions = measure_text(&self.username, None, 20, 1.0);
-        draw_text(&self.username, x, y - 10.0, 20.0, BLACK);
-    }
-
-    pub fn can_move((x, y): (i32, i32), op: &OtherPlayers) -> bool {
-        if x.is_negative() || y.is_negative() {
-            return false;
-        }
-
-        if x > (MAP_WIDTH - 1) as i32 || y > (MAP_HEIGHT - 1) as i32 {
-            return false;
-        }
-
-        for &(px, py) in op.0.values() {
-            if (px, py) == (x as usize, y as usize) {
-                return false;
-            }
-        }
-
-        true
-    }
-}
-
-struct OtherPlayers(HashMap<SocketAddr, (usize, usize)>);
-
-impl OtherPlayers {
-    pub fn render(&self, player: &Player) {
-        for &(x, y) in self.0.values() {
-            let (x, y) = (x as i32, y as i32);
-            let (px, py) = (player.curr_location.0 as i32, player.curr_location.1 as i32);
-
-            let relative_offset_x = (CAMERA_WIDTH / 2) as i32;
-            let relative_offset_y = (CAMERA_HEIGHT / 2) as i32;
-
-            // is the `other_player` outside the viewport?
-            if x < px - relative_offset_x
-                || x > px + relative_offset_x
-                || y < py - relative_offset_y
-                || y > py + relative_offset_y
-            {
-                continue;
-            }
-
-            // determine where to render relative to the player
-            let x = (x - px + CAMERA_WIDTH as i32 / 2) as f32 * TILE_WIDTH;
-            let y = (y - py + CAMERA_HEIGHT as i32 / 2) as f32 * TILE_HEIGHT;
-
-            draw_rectangle(x, y, TILE_WIDTH, TILE_HEIGHT, MAGENTA);
-        }
-    }
-}
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -198,61 +121,21 @@ async fn draw(
     let mut fps_logger = FpsLogger::new();
     let mut ping_monitor = PingMonitor::new();
 
-    // TODO: refactor this
-    let mut text = "".to_string();
-    let mut chat: Vec<String> = vec![];
+    let mut mmo_context = MmoContext {
+        user_text: "".to_string(),
+        user_chat: vec![],
+        server_tcp_write_stream: &tcp_writer,
+    };
 
     loop {
-        let dark_gray = color_u8!(31, 31, 31, 0);
-        clear_background(dark_gray);
+        clear_background(color_u8!(31, 31, 31, 0)); // dark gray
 
-        egui_macroquad::ui(|egui_ctx| {
-            egui_ctx.set_zoom_factor(2.0);
-            let _window = egui::Window::new("Chat Box")
-                .default_pos(Pos2::new((screen_width()) / 2., screen_height()))
-                .resizable([true, true])
-                .show(egui_ctx, |ui| {
-                    ui.horizontal(|ui| ui.label("Messages"));
-                    ui.add_space(4.);
-
-                    let row_height = ui.text_style_height(&egui::TextStyle::Body);
-                    egui::ScrollArea::vertical()
-                        .max_height(200.)
-                        .stick_to_bottom(true)
-                        .show_rows(ui, row_height, chat.len(), |ui, row_range| {
-                            for (row, msg) in row_range.zip(chat.iter()) {
-                                let text = format!("{}: {}", row + 1, msg);
-                                ui.label(text);
-                            }
-                        });
-
-                    // text input
-                    let text_edit_output = egui::text_edit::TextEdit::singleline(&mut text)
-                        .hint_text("type text here")
-                        .show(ui);
-
-                    if ui.input_mut(|i| i.consume_key(Modifiers::NONE, Key::Enter)) {
-                        if !text.is_empty() {
-                            let msg = ClientMsg::ChatMsg(text.clone());
-                            let serialized = bincode::serialize(&msg).unwrap();
-                            if let Ok(size) = tcp_writer.try_write(&serialized) {
-                                info!("sent {} bytes", size);
-                                info!("sent chat message: {}", text);
-                            } else {
-                                error!("could not send chat message: {}", text);
-                            }
-                            chat.push(text.clone());
-                            text.clear();
-                            text_edit_output.response.request_focus();
-                        }
-                    }
-                });
-        });
+        make_egui(&mut mmo_context);
 
         while let Ok(msg) = rx.try_recv() {
             match msg {
                 ServerMsg::PlayerState(ps) => {
-                    if ps.client_request_id.unwrap() >= player.request_id {
+                    if ps.client_request_id.unwrap() >= player.request_id.into() {
                         player.prev_location = ps.location;
                         player.curr_location = ps.location;
                     } else {
@@ -275,7 +158,7 @@ async fn draw(
                 }
                 ServerMsg::ChatMsg(msg) => {
                     debug!("pushing a message into the chat");
-                    chat.push(msg);
+                    mmo_context.user_chat.push(msg);
                 }
                 ServerMsg::InitOk(_, _) => {}
             }
@@ -316,7 +199,7 @@ fn send_new_pos_to_server(player: &mut Player, socket: &UdpSocket) {
         id: player.id,
         client_request_id: {
             player.request_id += 1;
-            Some(player.request_id)
+            Some(player.request_id.into())
         },
         location: player.curr_location,
     };

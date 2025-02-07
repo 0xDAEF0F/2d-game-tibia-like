@@ -1,26 +1,18 @@
-mod client;
+pub mod client;
+pub mod constants;
 mod game_objects;
 mod logger;
 pub mod server;
-mod server_state;
 mod tilesheet;
 mod utils;
 
 pub use game_objects::*;
 pub use logger::*;
-pub use server_state::*;
 pub use tilesheet::*;
 pub use utils::*;
 
 use serde::{Deserialize, Serialize};
-use std::net::{IpAddr, Ipv4Addr, SocketAddr};
-
-pub const TILE_WIDTH: f32 = 32.0;
-pub const TILE_HEIGHT: f32 = 32.0;
-
-pub const SERVER_UDP_ADDR: SocketAddr =
-    SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 5000);
-pub const SERVER_TCP_ADDR: &str = "127.0.0.1:8080";
+use std::net::SocketAddr;
 
 pub type Location = (usize, usize); // (x, y) coordinates
 

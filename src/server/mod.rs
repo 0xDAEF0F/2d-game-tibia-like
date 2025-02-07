@@ -1,3 +1,6 @@
+pub mod constants;
+mod player;
+
 use crate::{ClientMsg, Location, PlayerState};
 use std::net::SocketAddr;
 
