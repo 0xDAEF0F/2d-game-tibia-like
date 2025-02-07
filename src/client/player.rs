@@ -2,7 +2,7 @@ use crate::Location;
 use crate::client::constants::*;
 use crate::constants::*;
 use egui_macroquad::macroquad::prelude::*;
-use std::{collections::HashMap, net::SocketAddr};
+use std::collections::HashMap;
 use uuid::Uuid;
 
 #[derive(Debug)]

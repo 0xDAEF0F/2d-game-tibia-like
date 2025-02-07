@@ -12,7 +12,6 @@ pub use tilesheet::*;
 pub use utils::*;
 
 use serde::{Deserialize, Serialize};
-use std::net::SocketAddr;
 use uuid::Uuid;
 
 pub type Location = (u32, u32); // (x, y) coordinates

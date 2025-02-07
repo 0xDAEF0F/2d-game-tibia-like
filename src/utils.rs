@@ -1,14 +1,10 @@
 use crate::ClientMsg;
+use crate::client::constants::*;
+use crate::constants::*;
 use egui_macroquad::macroquad::prelude::*;
 use log::trace;
 use std::{collections::HashMap, sync::Arc};
 use tokio::net::UdpSocket;
-
-const TILE_WIDTH: f32 = 32.0;
-const TILE_HEIGHT: f32 = 32.0;
-
-const CAMERA_WIDTH: u32 = 10;
-const CAMERA_HEIGHT: u32 = 10;
 
 pub fn draw_delimitator_lines() {
     let max_x = CAMERA_WIDTH * TILE_WIDTH as u32;
