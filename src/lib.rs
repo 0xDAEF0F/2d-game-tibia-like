@@ -44,7 +44,10 @@ pub enum ServerMsg {
     RestOfPlayers(Vec<OtherPlayer>),
     Objects(GameObjects),
     Pong(u32),
-    ChatMsg(String),
+    ChatMsg {
+        username: String,
+        msg: String,
+    },
     InitOk(Uuid, Location),
     InitErr(String),
 }

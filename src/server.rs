@@ -1,7 +1,7 @@
 pub mod constants;
 mod player;
 
-use crate::{ClientMsg, Location};
+use crate::Location;
 pub use player::*;
 use std::net::SocketAddr;
 use uuid::Uuid;
@@ -13,6 +13,7 @@ pub enum ServerChannel {
         location: Location,
     },
     Disconnect(SocketAddr),
+    // TODO: which object?
     MoveObject {
         from: Location,
         to: Location,
@@ -21,27 +22,4 @@ pub enum ServerChannel {
         from: SocketAddr,
         msg: String,
     },
-}
-
-impl ServerChannel {
-    pub fn from_client_msg(msg: ClientMsg, addr: SocketAddr) -> Self {
-        match msg {
-            ClientMsg::PlayerState {
-                id,
-                client_request_id,
-                location,
-            } => ServerChannel::PlayerState {
-                id,
-                client_request_id,
-                location,
-            },
-            ClientMsg::MoveObject { from, to } => ServerChannel::MoveObject { from, to },
-            ClientMsg::Disconnect => ServerChannel::Disconnect(addr),
-            ClientMsg::ChatMsg(msg) => ServerChannel::ChatMsg {
-                from: addr,
-                msg: msg.to_string(),
-            },
-            _ => unimplemented!(),
-        }
-    }
 }

@@ -41,9 +41,7 @@ async fn main() -> Result<()> {
     let tcp_listener = TcpListener::bind(SERVER_TCP_ADDR).await?;
     info!("Server listening on TCP: {}", SERVER_TCP_ADDR);
 
-    let (server_channel_sender, mut server_channel_receiver) =
-        mpsc::unbounded_channel::<ServerChannel>();
-
+    // state
     let address_mapping: HashMap<SocketAddr, Uuid> = HashMap::new(); // addr -> player_id
     let address_mapping = Arc::new(Mutex::new(address_mapping));
 
@@ -56,10 +54,12 @@ async fn main() -> Result<()> {
     let tcp_writers_pool: HashMap<SocketAddr, OwnedWriteHalf> = HashMap::new();
     let tcp_writers_pool = Arc::new(Mutex::new(tcp_writers_pool));
 
-    // Accepts TCP connections. Depends on `tcp_listener` and `tx_`.
-    let tcp_writers_pool_clone = Arc::clone(&tcp_writers_pool);
-    let players_clone = Arc::clone(&players);
-    let server_channel_sender_clone = server_channel_sender.clone();
+    // channel
+    let (sc_tx, mut sc_rx) = mpsc::unbounded_channel::<ServerChannel>();
+
+    let writers_pool_ = Arc::clone(&tcp_writers_pool);
+    let players_ = Arc::clone(&players);
+    let server_channel_ = sc_tx.clone();
     let task1_handle = tokio::spawn(async move {
         use tokio_stream::wrappers::TcpListenerStream;
         let mut iter = TcpListenerStream::new(tcp_listener);
@@ -67,21 +67,21 @@ async fn main() -> Result<()> {
         while let Ok(tcp_stream) = iter.next().await.context("stream ended")? {
             let peer_addr = tcp_stream.peer_addr()?;
 
-            info!("accepted TCP connection from: {peer_addr}",);
+            info!("accepted TCP connection from: {peer_addr}. authenticating...",);
 
-            // currently only validates the username of the client.
-            validate_client(
-                tcp_stream,
-                tcp_writers_pool_clone.clone(),
-                players_clone.clone(),
-                server_channel_sender_clone.clone(),
-            );
+            let params = HandlerParams {
+                stream: tcp_stream,
+                players: players_.clone(),
+                server_channel: server_channel_.clone(),
+                writers_pool: writers_pool_.clone(),
+            };
+            handle_tcp_stream(params); // will spin up 2 tokio tasks
         }
 
         anyhow::Ok(())
     });
 
-    // game loop. depends on `rx`, `players`, `game_objects`, and `udp_socket`.
+    // game loop.
     let players_clone = players.clone();
     let objects_clone = game_objects.clone();
     let udp_socket_ = udp_socket.clone();
@@ -122,23 +122,27 @@ async fn main() -> Result<()> {
         }
     });
 
-    // Receives UDP msgs from clients. depends on the UDP socket and server channel sender.
+    // Receives UDP msgs from clients.
     let udp_socket_ = udp_socket.clone();
+    let address_mapping_clone = address_mapping.clone();
     let task3_handle = tokio::spawn(async move {
         let mut buf = [0; 1024];
         while let Ok((size, src)) = udp_socket_.recv_from(&mut buf).await {
-            // we need to retrieve a user id from the socket address
-            // can the user just tell us his user id?
-
-            let Ok(msg) = bincode::deserialize::<ClientMsg>(&buf[..size]) else {
-                debug!("failed to deserialize message from {src:?}");
+            let Some(&user_id) = address_mapping_clone.lock().await.get(&src) else {
+                warn!("received UDP message from an unregistered socket address. ignoring...");
                 continue;
             };
 
+            let Ok(msg) = bincode::deserialize::<ClientMsg>(&buf[..size]) else {
+                debug!("failed to deserialize message from {user_id}");
+                continue;
+            };
+
+            // reply right away, i guess?
             if let ClientMsg::Ping(x) = &msg {
                 let pong = bincode::serialize(&ServerMsg::Pong(*x)).unwrap();
-                let _result = udp_socket_.try_send_to(&pong, src);
-                trace!("sending pong for {:?}", *x);
+                trace!("replying pong to ping ##{x}");
+                _ = udp_socket_.try_send_to(&pong, src);
                 continue;
             }
 
@@ -155,11 +159,10 @@ async fn main() -> Result<()> {
                 },
                 ClientMsg::MoveObject { from, to } => ServerChannel::MoveObject { from, to },
                 ClientMsg::ChatMsg(_) => unimplemented!("chat messages only allowed through TCP"),
-                ClientMsg::Ping(_) => unreachable!(),
-                ClientMsg::Init(_) => unreachable!(),
+                _ => unreachable!(),
             };
 
-            _ = server_channel_sender.send(sc);
+            _ = sc_tx.send(sc);
         }
 
         anyhow::Ok(())
@@ -167,7 +170,7 @@ async fn main() -> Result<()> {
 
     let task4_handle = tokio::spawn(async move {
         // Receives messages from the server channel sender. depends on `rx`.
-        while let Some(ps) = server_channel_receiver.recv().await {
+        while let Some(ps) = sc_rx.recv().await {
             match ps {
                 ServerChannel::PlayerState {
                     id,
@@ -213,35 +216,48 @@ async fn main() -> Result<()> {
 
                     let mut address_mapping = address_mapping.lock().await;
                     let Some(user_id) = address_mapping.remove(&addr) else {
-                        warn!("{} was not in the address lookup table", addr);
+                        warn!("address: {addr} was not in the address lookup table");
                         continue;
                     };
 
                     let mut players = players.lock().await;
                     let Some(player) = players.remove(&user_id) else {
-                        warn!("user {} was not in the players map", user_id);
+                        warn!("user id: {user_id} was not in the players map");
                         continue;
                     };
 
                     let mut pool = tcp_writers_pool.lock().await;
                     let Some(tcp_writer) = pool.remove(&addr) else {
-                        warn!("user {} was not in the writers pool", user_id);
+                        warn!("user id: {user_id} was not in the writers pool");
                         continue;
                     };
                 }
                 ServerChannel::ChatMsg { from, msg } => {
-                    debug!("received chat msg: \"{}\" from: {}", msg, from);
+                    debug!("received chat msg: \"{msg}\" from: {from}");
+
+                    // FIXME: wrong
+                    let username = {
+                        let x = address_mapping.lock().await;
+                        let xx = x.get(&from).unwrap();
+                        let players = players.lock().await;
+                        let player = players.get(xx).unwrap();
+                        player.username.clone()
+                    };
 
                     // relay the msg to everyone but the sender
-                    let serialized = bincode::serialize(&ServerMsg::ChatMsg(msg))
-                        .expect("could not serialize chat msg");
+                    let x = ServerMsg::ChatMsg { msg, username };
+                    let serialized = bincode::serialize(&x).unwrap();
 
-                    // TODO: be more efficient here
                     let addresses_to_send = {
                         let pool = tcp_writers_pool.lock().await;
                         let addresses = pool.keys().filter(|a| from.ne(a));
-                        addresses.cloned().collect_vec()
+                        addresses.copied().collect_vec()
                     };
+
+                    if addresses_to_send.is_empty() {
+                        debug!("no other players to send chat message to");
+                        continue;
+                    }
 
                     debug!(
                         "sending chat message to {} players",
@@ -276,19 +292,115 @@ async fn main() -> Result<()> {
     Ok(())
 }
 
+struct HandlerParams {
+    stream: TcpStream,
+    writers_pool: Arc<Mutex<HashMap<SocketAddr, OwnedWriteHalf>>>,
+    players: Arc<Mutex<HashMap<Uuid, Player>>>,
+    server_channel: UnboundedSender<ServerChannel>,
+}
+fn handle_tcp_stream(mut params: HandlerParams) {
+    // this task is so it does not block the server and it can continue
+    // accepting new connections.
+    tokio::spawn(async move {
+        // if it fails to do so (auth) this task will be exited
+        authenticate_tcp_client(&mut params.stream, params.players.clone()).await?;
+
+        let (tcp_read, tcp_write) = params.stream.into_split();
+
+        // insert writer in the tcp pool
+        (params.writers_pool.lock().await).insert(tcp_read.peer_addr()?, tcp_write);
+
+        // set up tcp reader
+        setup_tcp_reader(tcp_read, params.server_channel.clone());
+
+        anyhow::Ok(())
+    });
+}
+
+/// Authenticates the client
+async fn authenticate_tcp_client(
+    tcp_stream: &mut TcpStream,
+    players: Arc<Mutex<HashMap<Uuid, Player>>>,
+) -> Result<()> {
+    let mut buf = [0; 1024];
+
+    let size = tcp_stream.read(&mut buf).await?;
+    let c_msg: ClientMsg = bincode::deserialize(&buf[..size])?;
+
+    let ClientMsg::Init(username) = c_msg else {
+        bail!("invalid client message");
+    };
+
+    println!("submitted username is: {}", username);
+
+    let is_username_taken = (players.lock().await)
+        .values()
+        .any(|p| p.username == username);
+
+    if is_username_taken {
+        let str = format!("username: {} is taken.", username);
+
+        info!("{}", str);
+
+        // send error to client
+        let msg = ServerMsg::InitErr(str);
+        let s_msg = bincode::serialize(&msg).unwrap();
+        _ = tcp_stream.write(&s_msg).await;
+
+        bail!("username: {username} is taken.");
+    }
+
+    let player_id = Uuid::new_v4();
+    let spawn_location = (0, 0);
+
+    let player = Player {
+        id: player_id,
+        username,
+        location: spawn_location,
+        client_request_id: 0,
+        udp_socket: None,
+        tcp_socket: Some(tcp_stream.peer_addr()?),
+    };
+
+    (players.lock().await).insert(player_id, player);
+
+    let init_ok = ServerMsg::InitOk(player_id, spawn_location);
+    let s_init_ok = bincode::serialize(&init_ok)?;
+    tcp_stream.write(&s_init_ok).await?;
+
+    anyhow::Ok(())
+}
+
 /// Spins up a task to listen to incoming TCP messages
 /// and relays them to the server channel.
-fn handle_tcp_reader(
+fn setup_tcp_reader(
     mut tcp_read: OwnedReadHalf,
     server_channel_sender: UnboundedSender<ServerChannel>,
 ) {
     tokio::spawn(async move {
         let peer_addr = tcp_read.peer_addr()?;
-        // make sure this is enough buffer size
         let mut buffer = [0; 1024];
         loop {
             match tcp_read.read(&mut buffer).await {
-                Ok(0) | Err(_) => {
+                Ok(n) if n > 0 => {
+                    let msg = bincode::deserialize::<ClientMsg>(&buffer[..n])
+                        .context("could not deserialize msg from client. closing connection.")?;
+                    let sc = match msg {
+                        ClientMsg::ChatMsg(message) => ServerChannel::ChatMsg {
+                            from: peer_addr,
+                            msg: message,
+                        },
+                        ClientMsg::Disconnect => ServerChannel::Disconnect(peer_addr),
+                        _ => {
+                            error!("invalid message received from the client (tcp)");
+                            continue;
+                        }
+                    };
+                    server_channel_sender
+                        .send(sc)
+                        .context("could not send message to server channel")?;
+                }
+                _ => {
                     info!("{:?} closed TCP connnection or tcp read failed.", peer_addr);
                     let disconnect = ServerChannel::Disconnect(peer_addr);
                     server_channel_sender
@@ -296,79 +408,8 @@ fn handle_tcp_reader(
                         .context("could not send message to server channel")?;
                     break;
                 }
-                Ok(n) => {
-                    let msg = bincode::deserialize::<ClientMsg>(&buffer[..n])
-                        .context("could not deserialize msg from client. closing connection.")?;
-                    server_channel_sender
-                        .send(ServerChannel::from_client_msg(msg, tcp_read.peer_addr()?))
-                        .context("could not send message to server channel")?;
-                }
             }
         }
-
-        anyhow::Ok(())
-    });
-}
-
-fn validate_client(
-    mut tcp_stream: TcpStream,
-    tcp_writers_pool: Arc<Mutex<HashMap<SocketAddr, OwnedWriteHalf>>>,
-    players: Arc<Mutex<HashMap<Uuid, Player>>>,
-    server_channel_sender: UnboundedSender<ServerChannel>,
-) {
-    tokio::spawn(async move {
-        let mut buf = [0; 1024];
-        let size = tcp_stream.read(&mut buf).await?;
-        let c_msg: ClientMsg = bincode::deserialize(&buf[..size])?;
-        let ClientMsg::Init(username) = c_msg else {
-            bail!("invalid client message");
-        };
-
-        println!("submitted username is: {}", username);
-
-        let is_username_taken = (players.lock().await)
-            .values()
-            .any(|p| p.username == username);
-
-        if is_username_taken {
-            let str = format!("username: {} is taken.", username);
-
-            info!("{}", str);
-
-            let msg = ServerMsg::InitErr(str);
-            let s_msg = bincode::serialize(&msg).unwrap();
-
-            _ = tcp_stream.write(&s_msg).await;
-
-            return anyhow::Ok(());
-        }
-
-        let player_id = Uuid::new_v4();
-        let spawn_location = (0, 0);
-
-        let player = Player {
-            id: player_id,
-            username,
-            location: spawn_location,
-            client_request_id: 0,
-            udp_socket: None,
-            tcp_socket: Some(tcp_stream.peer_addr()?),
-        };
-
-        (players.lock().await).insert(player_id, player);
-
-        let init_ok = ServerMsg::InitOk(player_id, spawn_location);
-        let s_init_ok = bincode::serialize(&init_ok)?;
-        tcp_stream.write(&s_init_ok).await?;
-
-        let (tcp_read, tcp_write) = tcp_stream.into_split();
-
-        tcp_writers_pool
-            .lock()
-            .await
-            .insert(tcp_read.peer_addr()?, tcp_write);
-
-        handle_tcp_reader(tcp_read, server_channel_sender.clone());
 
         anyhow::Ok(())
     });

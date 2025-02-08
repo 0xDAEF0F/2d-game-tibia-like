@@ -1,12 +1,43 @@
 mod chat_window;
 
 use chat_window::create_chat_window;
+use chrono::{DateTime, Local, Utc};
+use std::fmt;
 use tokio::net::tcp::OwnedWriteHalf;
 
 pub struct MmoContext<'a> {
+    pub username: String,
     pub user_text: String,
-    pub user_chat: Vec<String>,
+    pub user_chat: Vec<ChatMessage>,
     pub server_tcp_write_stream: &'a OwnedWriteHalf,
+}
+
+pub struct ChatMessage {
+    username: String,
+    message: String,
+    timestamp: DateTime<Local>,
+}
+
+impl ChatMessage {
+    pub fn new(username: String, message: String) -> Self {
+        Self {
+            username,
+            message,
+            timestamp: Local::now(),
+        }
+    }
+}
+
+impl fmt::Display for ChatMessage {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(
+            f,
+            "{} {}: {}",
+            self.timestamp.format("%I:%M%p"),
+            self.username,
+            self.message
+        )
+    }
 }
 
 pub fn make_egui(mmo_ctx: &mut MmoContext) {
@@ -15,3 +46,15 @@ pub fn make_egui(mmo_ctx: &mut MmoContext) {
         create_chat_window(mmo_ctx, egui_ctx);
     });
 }
+
+// #[cfg(test)]
+// mod tests {
+//     use super::*;
+
+//     #[test]
+//     fn test_date_display() {
+//         let date = Local::now();
+//         let date_str = date.format("%I:%M%p");
+//         println!("{}", date_str);
+//     }
+// }

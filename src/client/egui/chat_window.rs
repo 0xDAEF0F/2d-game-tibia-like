@@ -1,4 +1,4 @@
-use super::MmoContext;
+use super::{ChatMessage, MmoContext};
 use crate::ClientMsg;
 use egui_macroquad::egui::{self, Key, Modifiers, Pos2};
 use egui_macroquad::macroquad::prelude::*;
@@ -40,7 +40,7 @@ pub fn create_chat_window(mmo_context: &mut MmoContext, egui_ctx: &egui::Context
                     } else {
                         error!("could not send chat message: {}", text);
                     }
-                    chat.push(text.clone());
+                    chat.push(ChatMessage::new(mmo_context.username.clone(), text.clone()));
                     text.clear();
                     text_edit_output.response.request_focus();
                 }

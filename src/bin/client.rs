@@ -3,6 +3,7 @@ use egui_macroquad::macroquad;
 use log::{debug, info};
 use macroquad::Window;
 use macroquad::prelude::*;
+use my_mmo::client::ChatMessage;
 use my_mmo::client::constants::*;
 use my_mmo::client::{MmoContext, OtherPlayers, Player, make_egui};
 use my_mmo::constants::*;
@@ -59,8 +60,8 @@ async fn main() -> Result<()> {
             debug!("received msg from server through the tcp reader");
             let server_msg: ServerMsg = bincode::deserialize(&buf[0..size])
                 .expect("could not deserialize message from server in tcp listener");
-            if let ServerMsg::ChatMsg(msg) = server_msg {
-                _ = tx_.send(ServerMsg::ChatMsg(msg));
+            if let ServerMsg::ChatMsg { username, msg } = server_msg {
+                _ = tx_.send(ServerMsg::ChatMsg { username, msg });
             }
         }
     });
@@ -121,6 +122,7 @@ async fn draw(
     let mut ping_monitor = PingMonitor::new();
 
     let mut mmo_context = MmoContext {
+        username: player.username.clone(),
         user_text: "".to_string(),
         user_chat: vec![],
         server_tcp_write_stream: &tcp_writer,
@@ -158,9 +160,9 @@ async fn draw(
                     let new_other_players = HashMap::from_iter(iter);
                     other_players.0 = new_other_players;
                 }
-                ServerMsg::ChatMsg(msg) => {
-                    debug!("pushing a message into the chat");
-                    mmo_context.user_chat.push(msg);
+                ServerMsg::ChatMsg { username, msg } => {
+                    debug!("received message from: {username}. pushing it to the chat.");
+                    mmo_context.user_chat.push(ChatMessage::new(username, msg));
                 }
                 ServerMsg::InitOk(_, _) | ServerMsg::InitErr(_) => {
                     unreachable!("this messages are not supposed to arrive at this point in time")
