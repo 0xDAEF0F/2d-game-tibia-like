@@ -4,10 +4,8 @@ use log::{debug, info};
 use macroquad::Window;
 use macroquad::prelude::*;
 use my_mmo::client::ChatMessage;
-use my_mmo::client::constants::*;
 use my_mmo::client::{MmoContext, OtherPlayers, Player, make_egui};
 use my_mmo::constants::*;
-use my_mmo::server::constants::*;
 use my_mmo::*;
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -70,8 +68,8 @@ async fn main() -> Result<()> {
     tokio::spawn(async move {
         _ = tokio::signal::ctrl_c().await;
 
-        let serialized =
-            bincode::serialize(&ClientMsg::Disconnect).expect("could not serialize `Disconnect`");
+        let serialized = bincode::serialize(&TcpClientMsg::Disconnect)
+            .expect("could not serialize `Disconnect`");
         _ = socket_.try_send(&serialized);
 
         info!("shutting down client program.");
@@ -201,7 +199,7 @@ fn send_new_pos_to_server(player: &mut Player, socket: &UdpSocket) {
         return;
     }
 
-    let ps = ClientMsg::PlayerState {
+    let ps = TcpClientMsg::PlayerState {
         id: player.id,
         client_request_id: {
             player.request_id += 1;
@@ -420,7 +418,7 @@ fn handle_end_move_object(
             );
 
             game_objects.0.insert((x, y), obj);
-            let msg = bincode::serialize(&ClientMsg::MoveObject {
+            let msg = bincode::serialize(&TcpClientMsg::MoveObject {
                 from: moving_obj,
                 to: (x, y),
             })
@@ -452,7 +450,7 @@ async fn request_new_session_from_server(
         }
 
         // send the username to the server
-        let Ok(init_msg) = bincode::serialize(&ClientMsg::Init(username.clone())) else {
+        let Ok(init_msg) = bincode::serialize(&TcpClientMsg::Init(username.clone())) else {
             println!("failed to serialize message. try again.");
             continue;
         };

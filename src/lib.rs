@@ -18,7 +18,7 @@ pub type Location = (u32, u32); // (x, y) coordinates
 
 // Client -> Server
 #[derive(Debug, Serialize, Deserialize)]
-pub enum ClientMsg {
+pub enum TcpClientMsg {
     PlayerState {
         id: Uuid,
         location: Location,
@@ -32,6 +32,30 @@ pub enum ClientMsg {
     Ping(u32),
     ChatMsg(String),
     Init(String),
+}
+
+// Client -> Server
+#[derive(Debug, Serialize, Deserialize)]
+pub enum UdpClientMsg {
+    PlayerMove {
+        id: Option<Uuid>,
+        client_request_id: u32,
+        location: Location,
+    },
+    Ping {
+        id: Option<Uuid>,
+        client_request_id: u32,
+    },
+}
+
+impl UdpClientMsg {
+    pub fn get_player_id(&self) -> Option<Uuid> {
+        let id = match self {
+            UdpClientMsg::Ping { id, .. } => id,
+            UdpClientMsg::PlayerMove { id, .. } => id,
+        };
+        id.clone()
+    }
 }
 
 // Server -> Client

@@ -1,7 +1,7 @@
 mod chat_window;
 
 use chat_window::create_chat_window;
-use chrono::{DateTime, Local, Utc};
+use chrono::{DateTime, Local};
 use std::fmt;
 use tokio::net::tcp::OwnedWriteHalf;
 
@@ -46,15 +46,3 @@ pub fn make_egui(mmo_ctx: &mut MmoContext) {
         create_chat_window(mmo_ctx, egui_ctx);
     });
 }
-
-// #[cfg(test)]
-// mod tests {
-//     use super::*;
-
-//     #[test]
-//     fn test_date_display() {
-//         let date = Local::now();
-//         let date_str = date.format("%I:%M%p");
-//         println!("{}", date_str);
-//     }
-// }

@@ -1,14 +1,30 @@
-use serde::{Deserialize, Serialize};
+use crate::Location;
 use std::net::SocketAddr;
+use tokio::net::tcp::OwnedWriteHalf;
 use uuid::Uuid;
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug)]
 pub struct Player {
     pub id: Uuid,
     pub username: String,
     pub client_request_id: u32,
-    pub location: (u32, u32),
+    pub location: Location,
 
-    pub tcp_socket: Option<SocketAddr>,
+    pub tcp_tx: OwnedWriteHalf,
+    pub tcp_socket: SocketAddr,
     pub udp_socket: Option<SocketAddr>,
+}
+
+impl Player {
+    pub fn new(username: String, tcp_socket: SocketAddr, tcp_tx: OwnedWriteHalf) -> Player {
+        Player {
+            id: Uuid::new_v4(),
+            username,
+            client_request_id: 0,
+            location: (0, 0),
+            tcp_socket,
+            udp_socket: None,
+            tcp_tx,
+        }
+    }
 }

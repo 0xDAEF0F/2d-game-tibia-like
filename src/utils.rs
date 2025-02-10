@@ -1,5 +1,4 @@
-use crate::ClientMsg;
-use crate::client::constants::*;
+use crate::TcpClientMsg;
 use crate::constants::*;
 use egui_macroquad::macroquad::prelude::*;
 use log::trace;
@@ -70,7 +69,7 @@ impl PingMonitor {
                 self.ping_counter
             };
 
-            let serialized_ping = bincode::serialize(&ClientMsg::Ping(ping_id)).unwrap();
+            let serialized_ping = bincode::serialize(&TcpClientMsg::Ping(ping_id)).unwrap();
             _ = socket.try_send(&serialized_ping);
 
             self.pings.insert(ping_id, curr_time);
