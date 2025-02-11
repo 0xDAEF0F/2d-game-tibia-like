@@ -38,40 +38,42 @@ pub enum TcpClientMsg {
 #[derive(Debug, Serialize, Deserialize)]
 pub enum UdpClientMsg {
     PlayerMove {
-        id: Option<Uuid>,
+        id: Uuid,
         client_request_id: u32,
         location: Location,
     },
     Ping {
-        id: Option<Uuid>,
+        id: Uuid,
         client_request_id: u32,
     },
 }
 
 impl UdpClientMsg {
-    pub fn get_player_id(&self) -> Option<Uuid> {
+    pub fn get_player_id(&self) -> Uuid {
         let id = match self {
             UdpClientMsg::Ping { id, .. } => id,
             UdpClientMsg::PlayerMove { id, .. } => id,
         };
-        id.clone()
+        *id
     }
 }
 
 // Server -> Client
 #[derive(Debug, Serialize, Deserialize)]
-pub enum ServerMsg {
-    PlayerState {
+pub enum UdpServerMsg {
+    PlayerMove {
         location: Location,
         client_request_id: u32,
     },
     RestOfPlayers(Vec<OtherPlayer>),
     Objects(GameObjects),
     Pong(u32),
-    ChatMsg {
-        username: String,
-        msg: String,
-    },
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub enum TcpServerMsg {
+    Pong(u32),
+    ChatMsg { username: String, msg: String },
     InitOk(Uuid, Location),
     InitErr(String),
 }

@@ -3,7 +3,11 @@ use egui_macroquad::macroquad;
 use log::{debug, info};
 use macroquad::Window;
 use macroquad::prelude::*;
+use my_mmo::client::Cc;
 use my_mmo::client::ChatMessage;
+use my_mmo::client::ClientChannel;
+use my_mmo::client::tasks::tcp_reader_task;
+use my_mmo::client::tasks::udp_recv_task;
 use my_mmo::client::{MmoContext, OtherPlayers, Player, make_egui};
 use my_mmo::constants::*;
 use my_mmo::*;
@@ -35,34 +39,13 @@ async fn main() -> Result<()> {
 
     info!("client connected to server at: {}", SERVER_TCP_ADDR);
 
-    let (tx, rx) = mpsc::unbounded_channel::<ServerMsg>();
+    let (cc_tx, cc_rx) = mpsc::unbounded_channel::<ClientChannel>();
 
     // Spawn async UDP receive task
-    let socket_recv = socket.clone();
-    let tx_ = tx.clone();
-    tokio::spawn(async move {
-        let mut buf = [0; 1024];
-        while let Ok(size) = socket_recv.recv(&mut buf).await {
-            if let Ok(ps) = bincode::deserialize::<ServerMsg>(&buf[..size]) {
-                _ = tx_.send(ps);
-            }
-        }
-    });
+    udp_recv_task(socket.clone(), cc_tx.clone());
 
     // TCP reader
-    let tx_ = tx.clone();
-    tokio::spawn(async move {
-        let mut buf = [0; 1024];
-        let mut reader = BufReader::new(tcp_read);
-        while let Ok(size) = reader.read(&mut buf).await {
-            debug!("received msg from server through the tcp reader");
-            let server_msg: ServerMsg = bincode::deserialize(&buf[0..size])
-                .expect("could not deserialize message from server in tcp listener");
-            if let ServerMsg::ChatMsg { username, msg } = server_msg {
-                _ = tx_.send(ServerMsg::ChatMsg { username, msg });
-            }
-        }
-    });
+    tcp_reader_task(tcp_read, cc_tx.clone(), user_id);
 
     let socket_ = socket.clone();
     tokio::spawn(async move {
@@ -92,18 +75,18 @@ async fn main() -> Result<()> {
         prev_location: spawn_location,
         last_move_timer: 0.0,
     };
-    Window::from_config(conf, draw(socket, rx, tcp_write, player));
+    Window::from_config(conf, draw(socket, cc_rx, tcp_write, player));
 
     Ok(())
 }
 
 async fn draw(
     socket: Arc<UdpSocket>,
-    mut rx: UnboundedReceiver<ServerMsg>,
+    mut rx: UnboundedReceiver<ClientChannel>,
     tcp_writer: OwnedWriteHalf,
     mut player: Player,
 ) {
-    let mut other_players = OtherPlayers(HashMap::new());
+    let other_players = OtherPlayers(HashMap::new());
 
     let map = {
         let mut loader = Loader::new();
@@ -132,8 +115,8 @@ async fn draw(
         make_egui(&mut mmo_context);
 
         while let Ok(msg) = rx.try_recv() {
-            match msg {
-                ServerMsg::PlayerState {
+            match msg.msg {
+                Cc::PlayerMove {
                     client_request_id,
                     location,
                 } => {
@@ -144,27 +127,20 @@ async fn draw(
                         player.prev_location = player.curr_location;
                     }
                 }
-                ServerMsg::Pong(ping_id) => {
-                    ping_monitor.log_ping(&ping_id);
+                Cc::Disconnect => {
+                    // ?
+                    std::process::exit(0);
                 }
-                ServerMsg::Objects(o) => {
-                    if !game_objects.eq(&o) {
-                        debug!("updating game objects");
-                        game_objects = o.clone();
+                Cc::MoveObject { from, to } => {
+                    if let Some(val) = game_objects.0.remove(&from) {
+                        game_objects.0.insert(to, val);
                     }
                 }
-                ServerMsg::RestOfPlayers(rp) => {
-                    let iter = rp.into_iter().map(|p| (p.username, p.location));
-                    let new_other_players = HashMap::from_iter(iter);
-                    other_players.0 = new_other_players;
+                Cc::ChatMsg { from, msg } => {
+                    debug!("received message from: {from}. pushing it to the chat.");
+                    mmo_context.user_chat.push(ChatMessage::new(from, msg));
                 }
-                ServerMsg::ChatMsg { username, msg } => {
-                    debug!("received message from: {username}. pushing it to the chat.");
-                    mmo_context.user_chat.push(ChatMessage::new(username, msg));
-                }
-                ServerMsg::InitOk(_, _) | ServerMsg::InitErr(_) => {
-                    unreachable!("this messages are not supposed to arrive at this point in time")
-                }
+                Cc::Pong(ping_id) => ping_monitor.log_ping(&ping_id),
             }
         }
 
@@ -183,7 +159,7 @@ async fn draw(
         handle_end_move_object(&mut game_objects, &mut moving_object, &player, &socket);
 
         // Send player state to server if changed
-        send_new_pos_to_server(&mut player, &socket);
+        send_pos_to_server(&mut player, &socket);
 
         fps_logger.log_fps();
         ping_monitor.ping_server(&socket);
@@ -194,12 +170,12 @@ async fn draw(
     }
 }
 
-fn send_new_pos_to_server(player: &mut Player, socket: &UdpSocket) {
+fn send_pos_to_server(player: &mut Player, socket: &UdpSocket) {
     if player.curr_location == player.prev_location {
         return;
     }
 
-    let ps = TcpClientMsg::PlayerState {
+    let msg = UdpClientMsg::PlayerMove {
         id: player.id,
         client_request_id: {
             player.request_id += 1;
@@ -207,9 +183,11 @@ fn send_new_pos_to_server(player: &mut Player, socket: &UdpSocket) {
         },
         location: player.curr_location,
     };
+    let ser = bincode::serialize(&msg).unwrap();
 
-    let serialized_message = bincode::serialize(&ps).unwrap();
-    _ = socket.try_send(&serialized_message);
+    if let Err(e) = socket.try_send(&ser) {
+        error!("failed to send UDP message to server: {e}");
+    };
 }
 
 fn handle_player_movement(player: &mut Player, op: &OtherPlayers) {
@@ -468,19 +446,19 @@ async fn request_new_session_from_server(
         };
 
         // deserialize server msg
-        let Ok(sm) = bincode::deserialize::<ServerMsg>(&buf[..bytes_received]) else {
+        let Ok(sm) = bincode::deserialize::<TcpServerMsg>(&buf[..bytes_received]) else {
             println!("failed to deserialize server msg. try again");
             continue;
         };
 
-        if let ServerMsg::InitErr(err) = sm {
+        if let TcpServerMsg::InitErr(err) = sm {
             println!("{}", err);
             println!("retrying everything.");
             continue;
         }
 
         // make sure response is what's expected
-        let ServerMsg::InitOk(id, location) = sm else {
+        let TcpServerMsg::InitOk(id, location) = sm else {
             println!("expecting an init ok. retrying everything");
             continue;
         };

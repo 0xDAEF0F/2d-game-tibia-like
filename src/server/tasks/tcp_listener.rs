@@ -1,6 +1,6 @@
 use super::Players;
 use crate::server::{Player, Sc, ServerChannel};
-use crate::{ServerMsg, TcpClientMsg};
+use crate::{TcpClientMsg, TcpServerMsg};
 use anyhow::{Context, Result, bail};
 use log::{error, info};
 use std::collections::HashMap;
@@ -54,25 +54,29 @@ fn handle_tcp_stream(
         let user_address = stream.peer_addr().expect("expect to have the user address");
 
         // if it fails to do so (auth) this task will be exited
-        let username;
-        match authenticate_tcp_client(&mut stream, players.clone()).await {
-            Ok(u) => username = u,
+        let username = match authenticate_tcp_client(&mut stream, players.clone()).await {
+            Ok(u) => u,
             Err(e) => {
                 error!("failed to authenticate {user_address}: {e}");
                 return;
             }
-        }
+        };
+        let uuid = Uuid::new_v4();
+        let spawn_location = (0, 0);
 
-        let (tcp_read, tcp_write) = stream.into_split();
+        let (tcp_read, mut tcp_write) = stream.into_split();
 
-        let new_player = Player::new(username, user_address, tcp_write);
+        let ser = bincode::serialize(&TcpServerMsg::InitOk(uuid, spawn_location)).unwrap();
+        if tcp_write.write_all(&ser).await.is_err() {
+            error!("failed to send init ok to user: {username}");
+            return;
+        };
+
+        let new_player = Player::new(uuid, username, user_address, tcp_write);
 
         // storage
-        address_mapping
-            .lock()
-            .await
-            .insert(user_address, new_player.id);
-        players.lock().await.insert(new_player.id, new_player);
+        address_mapping.lock().await.insert(user_address, uuid);
+        players.lock().await.insert(uuid, new_player);
 
         // set up tcp reader
         setup_tcp_reader(tcp_read, sc_tx.clone(), address_mapping.clone());
@@ -102,7 +106,7 @@ async fn authenticate_tcp_client(tcp_stream: &mut TcpStream, players: Players) -
         info!("{}", str);
 
         // send error to client
-        let msg = ServerMsg::InitErr(str);
+        let msg = TcpServerMsg::InitErr(str);
         let s_msg = bincode::serialize(&msg).unwrap();
         _ = tcp_stream.write(&s_msg).await;
 

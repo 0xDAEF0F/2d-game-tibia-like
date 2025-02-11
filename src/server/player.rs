@@ -16,9 +16,14 @@ pub struct Player {
 }
 
 impl Player {
-    pub fn new(username: String, tcp_socket: SocketAddr, tcp_tx: OwnedWriteHalf) -> Player {
+    pub fn new(
+        id: Uuid,
+        username: String,
+        tcp_socket: SocketAddr,
+        tcp_tx: OwnedWriteHalf,
+    ) -> Player {
         Player {
-            id: Uuid::new_v4(),
+            id,
             username,
             client_request_id: 0,
             location: (0, 0),

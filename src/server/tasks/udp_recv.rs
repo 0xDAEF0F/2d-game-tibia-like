@@ -3,7 +3,7 @@ use crate::{
     server::{Player, Sc, ServerChannel},
 };
 use anyhow::Result;
-use log::{debug, error, warn};
+use log::{debug, error};
 use std::{collections::HashMap, net::SocketAddr, sync::Arc};
 use tokio::{
     net::UdpSocket,
@@ -26,14 +26,7 @@ pub fn udp_recv_task(
                 continue;
             };
 
-            let user_id = if let Some(user_id) = (address_mapping.lock()).await.get(&src).copied() {
-                user_id
-            } else if let Some(user_id) = msg.get_player_id() {
-                user_id
-            } else {
-                warn!("received UDP message from {src:?} (unknown). ignoring...");
-                continue;
-            };
+            let user_id = msg.get_player_id();
 
             if let Some(p) = (players.lock().await).get_mut(&user_id) {
                 if p.udp_socket.is_none() {

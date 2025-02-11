@@ -1,31 +1,15 @@
 use anyhow::Result;
 use log::info;
 use my_mmo::constants::*;
-use my_mmo::server::Player;
-use my_mmo::server::ServerChannel;
-use my_mmo::server::tasks::game_loop_task;
-use my_mmo::server::tasks::sc_rx_task;
-use my_mmo::server::tasks::tcp_listener_task;
-use my_mmo::server::tasks::udp_recv_task;
-use my_mmo::*;
+use my_mmo::server::tasks::{game_loop_task, sc_rx_task, tcp_listener_task, udp_recv_task};
+use my_mmo::server::{Player, ServerChannel};
+use my_mmo::{GameObjects, MmoLogger};
 use std::collections::HashMap;
 use std::net::SocketAddr;
 use std::sync::Arc;
 use tokio::net::{TcpListener, UdpSocket};
 use tokio::sync::{Mutex, mpsc};
 use uuid::Uuid;
-
-// TODO: the server is supposed to map tcp/udp clients from their socket
-// addresses to their player_id/username.
-
-// 1. Client establishes connection with server through TCP
-//    and server sends `user_id` to the client
-// 2. When client sends his UDP datagram he also sends his unique `user_id`
-//    so server can link both addresses.
-// 3. If the client disconnects through TCP. server destroys both UDP
-//    and TCP as well as information that is no longer needed about the player.
-// 4. If the client stops sending keep alives or pings for x amount of time
-//    the server destroys the user session
 
 #[tokio::main]
 async fn main() -> Result<()> {

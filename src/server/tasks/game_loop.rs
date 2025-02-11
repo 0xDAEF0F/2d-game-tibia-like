@@ -1,6 +1,6 @@
 use super::Players;
 use crate::constants::*;
-use crate::{GameObjects, OtherPlayer, ServerMsg};
+use crate::{GameObjects, OtherPlayer, UdpServerMsg};
 use anyhow::Result;
 use std::sync::Arc;
 use std::time::Duration;
@@ -29,7 +29,7 @@ pub fn game_loop_task(
                 let Some(player_udp) = player.udp_socket else {
                     continue;
                 };
-                let ps = ServerMsg::PlayerState {
+                let ps = UdpServerMsg::PlayerMove {
                     location: player.location,
                     client_request_id: player.client_request_id,
                 };
@@ -44,11 +44,11 @@ pub fn game_loop_task(
                         location: ps.location,
                     });
 
-                let rest_players = ServerMsg::RestOfPlayers(rest.collect());
+                let rest_players = UdpServerMsg::RestOfPlayers(rest.collect());
                 let rest_players_ser = bincode::serialize(&rest_players)?;
                 _ = udp_socket.send_to(&rest_players_ser, player_udp).await;
 
-                let objects = ServerMsg::Objects(game_objects.clone());
+                let objects = UdpServerMsg::Objects(game_objects.clone());
                 let encoded_objects = bincode::serialize(&objects)?;
                 _ = udp_socket.send_to(&encoded_objects, player_udp).await;
             }

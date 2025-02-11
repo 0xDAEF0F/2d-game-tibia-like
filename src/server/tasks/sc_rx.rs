@@ -1,5 +1,5 @@
 use crate::{
-    GameObjects, ServerMsg,
+    GameObjects, TcpServerMsg, UdpServerMsg,
     server::{Player, Sc, ServerChannel},
 };
 use anyhow::Result;
@@ -77,7 +77,7 @@ pub fn sc_rx_task(
                     let username = players.get(&player_id).unwrap().username.clone();
 
                     // construct the message for everyone
-                    let chat_msg = ServerMsg::ChatMsg {
+                    let chat_msg = TcpServerMsg::ChatMsg {
                         username: username.clone(),
                         msg,
                     };
@@ -101,9 +101,9 @@ pub fn sc_rx_task(
                     let tcp_socket_addr =
                         (players.lock().await).get(&player_id).unwrap().tcp_socket;
 
-                    let msg = bincode::serialize(&ServerMsg::Pong(ping_id))?;
+                    let msg = bincode::serialize(&UdpServerMsg::Pong(ping_id))?;
 
-                    if let Err(_) = udp_socket.send_to(&msg, tcp_socket_addr).await {
+                    if udp_socket.send_to(&msg, tcp_socket_addr).await.is_err() {
                         error!("failed to send pong to {player_id}");
                     }
                 }
