@@ -1,16 +1,18 @@
 use crate::TcpServerMsg;
 use crate::client::{Cc, ClientChannel};
+use anyhow::Result;
 use log::debug;
 use tokio::io::{AsyncReadExt, BufReader};
 use tokio::net::tcp::OwnedReadHalf;
 use tokio::sync::mpsc::UnboundedSender;
+use tokio::task::JoinHandle;
 use uuid::Uuid;
 
 pub fn tcp_reader_task(
     tcp_read: OwnedReadHalf,
     cc_tx: UnboundedSender<ClientChannel>,
     user_id: Uuid,
-) {
+) -> JoinHandle<Result<()>> {
     tokio::spawn(async move {
         let mut buf = [0; 1024];
         let mut reader = BufReader::new(tcp_read);
@@ -37,5 +39,6 @@ pub fn tcp_reader_task(
 
             cc_tx.send(msg).unwrap();
         }
-    });
+        Ok(())
+    })
 }

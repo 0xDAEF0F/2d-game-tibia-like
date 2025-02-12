@@ -2,7 +2,7 @@ mod egui;
 mod player;
 pub mod tasks;
 
-use crate::Location;
+use crate::{GameObjects, Location, OtherPlayer};
 pub use egui::*;
 pub use player::*;
 use uuid::Uuid;
@@ -17,11 +17,13 @@ pub enum Cc {
         client_request_id: u32,
         location: Location,
     },
+    RestOfPlayers(Vec<OtherPlayer>),
     Disconnect,
     MoveObject {
         from: Location,
         to: Location,
     },
+    Objects(GameObjects),
     ChatMsg {
         from: String,
         msg: String,

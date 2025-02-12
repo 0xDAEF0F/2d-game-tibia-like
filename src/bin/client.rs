@@ -42,20 +42,26 @@ async fn main() -> Result<()> {
     let (cc_tx, cc_rx) = mpsc::unbounded_channel::<ClientChannel>();
 
     // Spawn async UDP receive task
-    udp_recv_task(socket.clone(), cc_tx.clone());
+    let join_handle1 = udp_recv_task(socket.clone(), cc_tx.clone(), user_id);
 
     // TCP reader
-    tcp_reader_task(tcp_read, cc_tx.clone(), user_id);
+    let join_handle2 = tcp_reader_task(tcp_read, cc_tx.clone(), user_id);
 
-    let socket_ = socket.clone();
     tokio::spawn(async move {
-        _ = tokio::signal::ctrl_c().await;
+        let Ok((t1, t2)) = tokio::try_join!(join_handle1, join_handle2) else {
+            error!("failed to join UDP receive and TCP reader tasks.");
+            std::process::exit(1);
+        };
 
-        let serialized = bincode::serialize(&TcpClientMsg::Disconnect)
-            .expect("could not serialize `Disconnect`");
-        _ = socket_.try_send(&serialized);
+        if let Err(e) = t1 {
+            error!("UDP receive task failed: {e}");
+            std::process::exit(1);
+        }
 
-        info!("shutting down client program.");
+        if let Err(e) = t2 {
+            error!("TCP reader task failed: {e}");
+            std::process::exit(1);
+        }
 
         std::process::exit(0);
     });
@@ -77,6 +83,8 @@ async fn main() -> Result<()> {
     };
     Window::from_config(conf, draw(socket, cc_rx, tcp_write, player));
 
+    println!("exiting...");
+
     Ok(())
 }
 
@@ -86,7 +94,9 @@ async fn draw(
     tcp_writer: OwnedWriteHalf,
     mut player: Player,
 ) {
-    let other_players = OtherPlayers(HashMap::new());
+    prevent_quit();
+
+    let mut other_players = OtherPlayers(HashMap::new());
 
     let map = {
         let mut loader = Loader::new();
@@ -127,10 +137,7 @@ async fn draw(
                         player.prev_location = player.curr_location;
                     }
                 }
-                Cc::Disconnect => {
-                    // ?
-                    std::process::exit(0);
-                }
+                Cc::Disconnect => std::process::exit(0),
                 Cc::MoveObject { from, to } => {
                     if let Some(val) = game_objects.0.remove(&from) {
                         game_objects.0.insert(to, val);
@@ -141,6 +148,14 @@ async fn draw(
                     mmo_context.user_chat.push(ChatMessage::new(from, msg));
                 }
                 Cc::Pong(ping_id) => ping_monitor.log_ping(&ping_id),
+                Cc::RestOfPlayers(op) => {
+                    let iter = op.into_iter().map(|p| (p.username, p.location));
+                    other_players.0.clear();
+                    other_players.0.extend(iter);
+                }
+                Cc::Objects(game_obj) => {
+                    game_objects = game_obj;
+                }
             }
         }
 
@@ -162,9 +177,16 @@ async fn draw(
         send_pos_to_server(&mut player, &socket);
 
         fps_logger.log_fps();
-        ping_monitor.ping_server(&socket);
+        ping_monitor.ping_server(&tcp_writer);
 
         egui_macroquad::draw();
+
+        if is_quit_requested() {
+            let ser = bincode::serialize(&TcpClientMsg::Disconnect).unwrap();
+            _ = tcp_writer.try_write(&ser);
+            info!("shutting down client program.");
+            std::process::exit(0);
+        }
 
         next_frame().await;
     }

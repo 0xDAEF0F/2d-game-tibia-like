@@ -4,6 +4,7 @@ use egui_macroquad::macroquad::prelude::*;
 use log::trace;
 use std::{collections::HashMap, sync::Arc};
 use tokio::net::UdpSocket;
+use tokio::net::tcp::OwnedWriteHalf;
 
 pub fn draw_delimitator_lines() {
     let max_x = CAMERA_WIDTH * TILE_WIDTH as u32;
@@ -61,7 +62,7 @@ impl PingMonitor {
         PingMonitor::default()
     }
 
-    pub fn ping_server(&mut self, socket: &Arc<UdpSocket>) {
+    pub fn ping_server(&mut self, socket: &OwnedWriteHalf) {
         let curr_time = get_time();
         if curr_time - self.last_sent_ping_time >= PING_INTERVAL {
             let ping_id = {
@@ -70,7 +71,7 @@ impl PingMonitor {
             };
 
             let serialized_ping = bincode::serialize(&TcpClientMsg::Ping(ping_id)).unwrap();
-            _ = socket.try_send(&serialized_ping);
+            _ = socket.try_write(&serialized_ping);
 
             self.pings.insert(ping_id, curr_time);
             self.last_sent_ping_time = curr_time;
