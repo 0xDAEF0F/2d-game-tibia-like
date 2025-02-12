@@ -83,8 +83,6 @@ async fn main() -> Result<()> {
     };
     Window::from_config(conf, draw(socket, cc_rx, tcp_write, player));
 
-    println!("exiting...");
-
     Ok(())
 }
 

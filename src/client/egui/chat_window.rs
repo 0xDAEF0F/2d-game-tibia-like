@@ -2,6 +2,8 @@ use super::{ChatMessage, MmoContext};
 use crate::TcpClientMsg;
 use egui_macroquad::egui::{self, Key, Modifiers, Pos2};
 use egui_macroquad::macroquad::prelude::*;
+use log::{error, info};
+use tokio::io::AsyncWriteExt;
 
 pub fn create_chat_window(mmo_context: &mut MmoContext, egui_ctx: &egui::Context) {
     let chat = &mut mmo_context.user_chat;

@@ -2,7 +2,7 @@ use super::Players;
 use crate::server::{Player, Sc, ServerChannel};
 use crate::{TcpClientMsg, TcpServerMsg};
 use anyhow::{Context, Result, bail};
-use log::{error, info};
+use log::{error, info, trace, warn};
 use std::collections::HashMap;
 use std::net::SocketAddr;
 use std::sync::Arc;
@@ -134,12 +134,18 @@ fn setup_tcp_reader(
                         break;
                     };
 
+                    trace!("received TCP msg from {peer_addr:?}");
+
                     let user_id = *address_mapping.lock().await.get(&peer_addr).unwrap();
 
                     let sc = match msg {
                         TcpClientMsg::ChatMsg(m) => Sc::ChatMsg(m),
                         TcpClientMsg::Disconnect => Sc::Disconnect,
-                        _ => break,
+                        TcpClientMsg::Ping(p_id) => Sc::Ping(p_id),
+                        _ => {
+                            warn!("unwanted msg: {msg:?}. skipping...");
+                            continue;
+                        }
                     };
 
                     let sc = ServerChannel {
