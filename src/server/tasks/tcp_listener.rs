@@ -2,7 +2,7 @@ use super::Players;
 use crate::server::{Player, Sc, ServerChannel};
 use crate::{TcpClientMsg, TcpServerMsg};
 use anyhow::{Context, Result, bail};
-use log::{error, info, trace, warn};
+use log::{debug, error, info, trace, warn};
 use std::collections::HashMap;
 use std::net::SocketAddr;
 use std::sync::Arc;
@@ -54,44 +54,80 @@ fn handle_tcp_stream(
         let user_address = stream.peer_addr().expect("expect to have the user address");
 
         // if it fails to do so (auth) this task will be exited
-        let username = match authenticate_tcp_client(&mut stream, players.clone()).await {
+        let auth_type = match authenticate_tcp_client(&mut stream, players.clone()).await {
             Ok(u) => u,
             Err(e) => {
                 error!("failed to authenticate {user_address}: {e}");
                 return;
             }
         };
-        let uuid = Uuid::new_v4();
-        let spawn_location = (0, 0);
 
-        let (tcp_read, mut tcp_write) = stream.into_split();
+        if let AuthType::Connection(username) = auth_type {
+            let uuid = Uuid::new_v4();
+            let spawn_location = (0, 0);
 
-        let ser = bincode::serialize(&TcpServerMsg::InitOk(uuid, spawn_location)).unwrap();
-        if tcp_write.write_all(&ser).await.is_err() {
-            error!("failed to send init ok to user: {username}");
-            return;
-        };
+            let (tcp_read, mut tcp_write) = stream.into_split();
 
-        let new_player = Player::new(uuid, username, user_address, tcp_write);
+            let ser = bincode::serialize(&TcpServerMsg::InitOk(uuid, spawn_location)).unwrap();
+            if tcp_write.write_all(&ser).await.is_err() {
+                error!("failed to send init ok to user: {username}");
+                return;
+            };
 
-        // storage
-        address_mapping.lock().await.insert(user_address, uuid);
-        players.lock().await.insert(uuid, new_player);
+            let new_player = Player::new(uuid, username, user_address, tcp_write);
 
-        // set up tcp reader
-        setup_tcp_reader(tcp_read, sc_tx.clone(), address_mapping.clone());
+            // storage
+            address_mapping.lock().await.insert(user_address, uuid);
+            players.lock().await.insert(uuid, new_player);
+
+            // set up tcp reader
+            setup_tcp_reader(tcp_read, sc_tx.clone(), address_mapping.clone());
+        } else if let AuthType::Reconnection(uuid) = auth_type {
+            debug!("reconnecting player: {uuid}");
+            let (tcp_read, mut tcp_write) = stream.into_split();
+
+            let ser = bincode::serialize(&TcpServerMsg::ReconnectOk).unwrap();
+            if tcp_write.write_all(&ser).await.is_err() {
+                error!("failed to send reconnect ok to user");
+                return;
+            };
+
+            // storage
+            address_mapping.lock().await.insert(user_address, uuid);
+            let mut players = players.lock().await;
+            let player = players.get_mut(&uuid).unwrap();
+
+            player.tcp_tx = tcp_write;
+            player.tcp_socket = user_address;
+
+            // set up tcp reader
+            setup_tcp_reader(tcp_read, sc_tx.clone(), address_mapping.clone());
+        }
     });
 }
 
-// authenticates a new player and either returns an: `Ok(username)` or `anyhow::Err()`
-async fn authenticate_tcp_client(tcp_stream: &mut TcpStream, players: Players) -> Result<String> {
+enum AuthType {
+    Reconnection(Uuid),
+    Connection(String),
+}
+
+async fn authenticate_tcp_client(tcp_stream: &mut TcpStream, players: Players) -> Result<AuthType> {
     let mut buf = [0; 1024];
 
     let size = tcp_stream.read(&mut buf).await?;
     let c_msg: TcpClientMsg = bincode::deserialize(&buf[..size])?;
 
-    let TcpClientMsg::Init(username) = c_msg else {
-        bail!("invalid client message");
+    let username = match c_msg {
+        TcpClientMsg::Init(username) => username,
+        TcpClientMsg::Reconnect(uuid) => {
+            let mut players = players.lock().await;
+            let Some(p) = players.get_mut(&uuid) else {
+                bail!("player does not exist");
+            };
+            p.tcp_socket = tcp_stream.peer_addr()?;
+            return Ok(AuthType::Reconnection(uuid));
+        }
+        _ => bail!("invalid client message"),
     };
 
     println!("submitted username is: {}", username);
@@ -113,7 +149,7 @@ async fn authenticate_tcp_client(tcp_stream: &mut TcpStream, players: Players) -
         bail!("username: {username} is taken.");
     }
 
-    Ok(username)
+    Ok(AuthType::Connection(username))
 }
 
 /// Spins up a task to listen to incoming TCP messages

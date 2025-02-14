@@ -1,6 +1,6 @@
 use anyhow::Result;
 use egui_macroquad::macroquad;
-use log::{debug, info};
+use log::{debug, error, info};
 use macroquad::Window;
 use macroquad::prelude::*;
 use my_mmo::client::Cc;
@@ -110,6 +110,10 @@ async fn draw(
     let mut fps_logger = FpsLogger::new();
     let mut ping_monitor = PingMonitor::new();
 
+    let mut retries = 0;
+    let mut last_try = get_time();
+    let mut is_disconnected = false;
+
     let mut mmo_context = MmoContext {
         username: player.username.clone(),
         user_text: "".to_string(),
@@ -135,7 +139,9 @@ async fn draw(
                         player.prev_location = player.curr_location;
                     }
                 }
-                Cc::Disconnect => std::process::exit(0),
+                Cc::Disconnect => {
+                    is_disconnected = true;
+                }
                 Cc::MoveObject { from, to } => {
                     if let Some(val) = game_objects.0.remove(&from) {
                         game_objects.0.insert(to, val);
@@ -153,6 +159,34 @@ async fn draw(
                 }
                 Cc::Objects(game_obj) => {
                     game_objects = game_obj;
+                }
+                Cc::Reconnect => {
+                    if !is_disconnected {
+                        is_disconnected = true;
+                        continue;
+                    }
+
+                    let now = get_time();
+
+                    if now - last_try < 5. {
+                        continue;
+                    }
+
+                    if retries > CLIENT_CONNECTION_RETRIES {
+                        error!("retries for reconnection to server exceeded. shutting down.");
+                        std::process::exit(1);
+                    }
+
+                    debug!("lost connection to the server. reconnecting...");
+
+                    let msg = TcpClientMsg::Reconnect(player.id);
+                    let msg = bincode::serialize(&msg).unwrap();
+                    _ = tcp_writer.try_write(&msg).map_err(|e| {
+                        error!("{e}");
+                    });
+
+                    retries += 1;
+                    last_try = now;
                 }
             }
         }

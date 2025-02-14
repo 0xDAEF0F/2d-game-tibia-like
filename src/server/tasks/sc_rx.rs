@@ -4,7 +4,7 @@ use crate::{
 };
 use anyhow::Result;
 use futures::future::join_all;
-use log::{debug, error, info, trace};
+use log::{debug, error, info, trace, warn};
 use std::{collections::HashMap, net::SocketAddr, sync::Arc};
 use tokio::{
     io::AsyncWriteExt,
@@ -62,13 +62,21 @@ pub fn sc_rx_task(
                     info!("{player_id} disconnected");
 
                     let mut players = players.lock().await;
-                    let player = players.get(&player_id).unwrap();
+                    let player = players.get(&player_id);
+
+                    let Some(player) = player else {
+                        debug!("player {player_id} not found (already disconnected).");
+                        continue;
+                    };
+
                     let mut address_mapping = address_mapping.lock().await;
 
                     // cleanup
-                    address_mapping.remove(&player.tcp_socket);
-                    player.udp_socket.and_then(|a| address_mapping.remove(&a));
-                    players.remove(&player_id);
+                    let _maybe_uuid = address_mapping.remove(&player.tcp_socket);
+                    let _maybe_uuid = player
+                        .udp_socket
+                        .and_then(|udp_socket| address_mapping.remove(&udp_socket));
+                    let _maybe_player = players.remove(&player_id);
                 }
                 Sc::ChatMsg(msg) => {
                     debug!("received chat msg: \"{msg}\" from: {player_id}");

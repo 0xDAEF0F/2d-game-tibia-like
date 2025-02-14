@@ -16,3 +16,5 @@ pub const MAP_WIDTH: u32 = 30;
 pub const MAP_HEIGHT: u32 = 20;
 
 pub const BASE_MOVE_DELAY: f32 = 0.2;
+
+pub const CLIENT_CONNECTION_RETRIES: u8 = 5;

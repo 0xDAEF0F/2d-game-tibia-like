@@ -32,6 +32,7 @@ pub enum TcpClientMsg {
     Ping(u32),
     ChatMsg(String),
     Init(String),
+    Reconnect(Uuid),
 }
 
 // Client -> Server
@@ -75,6 +76,7 @@ pub enum TcpServerMsg {
     Pong(u32),
     ChatMsg { username: String, msg: String },
     InitOk(Uuid, Location),
+    ReconnectOk,
     InitErr(String),
 }
 
