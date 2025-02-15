@@ -1,7 +1,7 @@
 use crate::TcpServerMsg;
 use crate::client::{Cc, ClientChannel};
 use anyhow::Result;
-use log::debug;
+use log::{debug, info};
 use tokio::io::AsyncReadExt;
 use tokio::net::tcp::OwnedReadHalf;
 use tokio::sync::mpsc::UnboundedSender;
@@ -31,7 +31,7 @@ pub fn tcp_reader_task(
                             from: username,
                             msg,
                         },
-                        TcpServerMsg::ReconnectOk => unreachable!(),
+                        TcpServerMsg::ReconnectOk => Cc::ReconnectOk,
                         TcpServerMsg::InitOk(_, _) => unreachable!(),
                         TcpServerMsg::InitErr(_) => unreachable!(),
                     };
@@ -44,14 +44,11 @@ pub fn tcp_reader_task(
                     cc_tx.send(msg).unwrap();
                 }
                 _ => {
-                    // debug!("server disconnected. sending reconnect message to channel");
-                    let msg = ClientChannel {
-                        id: user_id,
-                        msg: Cc::Reconnect,
-                    };
-                    cc_tx.send(msg).unwrap();
+                    info!("exiting tcp reader task.");
+                    break;
                 }
             }
         }
+        Ok(())
     })
 }

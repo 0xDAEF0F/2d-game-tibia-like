@@ -12,11 +12,15 @@ use my_mmo::client::{MmoContext, OtherPlayers, Player, make_egui};
 use my_mmo::constants::*;
 use my_mmo::*;
 use std::collections::HashMap;
+use std::net::SocketAddr;
 use std::sync::Arc;
+use std::sync::Mutex;
+use std::time::Duration;
 use tiled::{Loader, Map};
 use tokio::io::{AsyncBufReadExt, AsyncReadExt, AsyncWriteExt, BufReader, stdin};
 use tokio::net::TcpStream;
 use tokio::net::{TcpSocket, UdpSocket, tcp::OwnedWriteHalf};
+use tokio::sync::mpsc::UnboundedSender;
 use tokio::sync::mpsc::{self, UnboundedReceiver};
 use uuid::Uuid;
 
@@ -35,8 +39,6 @@ async fn main() -> Result<()> {
 
     println!("username: {} was accepted by the server.", username);
 
-    let (tcp_read, tcp_write) = stream.into_split();
-
     info!("client connected to server at: {}", SERVER_TCP_ADDR);
 
     let (cc_tx, cc_rx) = mpsc::unbounded_channel::<ClientChannel>();
@@ -44,26 +46,11 @@ async fn main() -> Result<()> {
     // Spawn async UDP receive task
     let join_handle1 = udp_recv_task(socket.clone(), cc_tx.clone(), user_id);
 
-    // TCP reader
-    let join_handle2 = tcp_reader_task(tcp_read, cc_tx.clone(), user_id);
-
+    // UDP task is not supposed to finish
     tokio::spawn(async move {
-        let Ok((t1, t2)) = tokio::try_join!(join_handle1, join_handle2) else {
-            error!("failed to join UDP receive and TCP reader tasks.");
-            std::process::exit(1);
-        };
-
-        if let Err(e) = t1 {
-            error!("UDP receive task failed: {e}");
-            std::process::exit(1);
-        }
-
-        if let Err(e) = t2 {
-            error!("TCP reader task failed: {e}");
-            std::process::exit(1);
-        }
-
-        std::process::exit(0);
+        _ = tokio::join!(join_handle1);
+        error!("UDP receive task failed");
+        std::process::exit(1);
     });
 
     // Macroquad configuration and window
@@ -81,18 +68,52 @@ async fn main() -> Result<()> {
         prev_location: spawn_location,
         last_move_timer: 0.0,
     };
-    Window::from_config(conf, draw(socket, cc_rx, tcp_write, player));
+
+    Window::from_config(conf, draw(socket, stream, cc_rx, cc_tx, player));
 
     Ok(())
 }
 
 async fn draw(
     socket: Arc<UdpSocket>,
-    mut rx: UnboundedReceiver<ClientChannel>,
-    tcp_writer: OwnedWriteHalf,
+    tcp_stream: TcpStream,
+    mut cc_rx: UnboundedReceiver<ClientChannel>,
+    cc_tx: UnboundedSender<ClientChannel>,
     mut player: Player,
 ) {
     prevent_quit();
+
+    let (tcp_reader, tcp_writer) = tcp_stream.into_split();
+    let tcp_writer = Arc::new(Mutex::new(tcp_writer));
+
+    let tcp_writer_ = Arc::clone(&tcp_writer);
+    tokio::spawn(async move {
+        let jh = tcp_reader_task(tcp_reader, cc_tx.clone(), player.id);
+        _ = tokio::join!(jh);
+        let mut attempts_to_reconnect = 0;
+        while attempts_to_reconnect <= MAX_CONNECTION_RETRIES {
+            warn!("attempting re-connection to server (TCP).");
+            let tcp_socket = TcpSocket::new_v4().unwrap();
+            let server_addr: SocketAddr = SERVER_TCP_ADDR.parse().unwrap();
+            let Ok(mut tcp_stream) = tcp_socket.connect(server_addr).await else {
+                attempts_to_reconnect += 1;
+                tokio::time::sleep(Duration::from_secs(5)).await;
+                continue;
+            };
+
+            // reconnect to the server
+            let reconnect_msg = TcpClientMsg::Reconnect(player.id);
+            let reconnect_msg = bincode::serialize(&reconnect_msg).unwrap();
+            tcp_stream.write_all(&reconnect_msg).await.unwrap();
+
+            let (tcp_reader, tcp_writer_new) = tcp_stream.into_split();
+            *tcp_writer_.lock().unwrap() = tcp_writer_new;
+            let jh = tcp_reader_task(tcp_reader, cc_tx.clone(), player.id);
+            _ = tokio::join!(jh);
+        }
+        info!("exiting program.");
+        std::process::exit(1);
+    });
 
     let mut other_players = OtherPlayers(HashMap::new());
 
@@ -110,23 +131,25 @@ async fn draw(
     let mut fps_logger = FpsLogger::new();
     let mut ping_monitor = PingMonitor::new();
 
-    let mut retries = 0;
-    let mut last_try = get_time();
     let mut is_disconnected = false;
 
     let mut mmo_context = MmoContext {
         username: player.username.clone(),
         user_text: "".to_string(),
         user_chat: vec![],
-        server_tcp_write_stream: &tcp_writer,
+        server_tcp_write_stream: tcp_writer.clone(),
     };
 
     loop {
         clear_background(color_u8!(31, 31, 31, 0)); // dark gray
 
+        if is_disconnected {
+            continue;
+        }
+
         make_egui(&mut mmo_context);
 
-        while let Ok(msg) = rx.try_recv() {
+        while let Ok(msg) = cc_rx.try_recv() {
             match msg.msg {
                 Cc::PlayerMove {
                     client_request_id,
@@ -138,9 +161,6 @@ async fn draw(
                     } else {
                         player.prev_location = player.curr_location;
                     }
-                }
-                Cc::Disconnect => {
-                    is_disconnected = true;
                 }
                 Cc::MoveObject { from, to } => {
                     if let Some(val) = game_objects.0.remove(&from) {
@@ -160,33 +180,11 @@ async fn draw(
                 Cc::Objects(game_obj) => {
                     game_objects = game_obj;
                 }
-                Cc::Reconnect => {
-                    if !is_disconnected {
-                        is_disconnected = true;
-                        continue;
-                    }
-
-                    let now = get_time();
-
-                    if now - last_try < 5. {
-                        continue;
-                    }
-
-                    if retries > CLIENT_CONNECTION_RETRIES {
-                        error!("retries for reconnection to server exceeded. shutting down.");
-                        std::process::exit(1);
-                    }
-
-                    debug!("lost connection to the server. reconnecting...");
-
-                    let msg = TcpClientMsg::Reconnect(player.id);
-                    let msg = bincode::serialize(&msg).unwrap();
-                    _ = tcp_writer.try_write(&msg).map_err(|e| {
-                        error!("{e}");
-                    });
-
-                    retries += 1;
-                    last_try = now;
+                Cc::Disconnect => {
+                    is_disconnected = true;
+                }
+                Cc::ReconnectOk => {
+                    is_disconnected = false;
                 }
             }
         }
@@ -215,7 +213,7 @@ async fn draw(
 
         if is_quit_requested() {
             let ser = bincode::serialize(&TcpClientMsg::Disconnect).unwrap();
-            _ = tcp_writer.try_write(&ser);
+            _ = tcp_writer.lock().unwrap().try_write(&ser);
             info!("shutting down client program.");
             std::process::exit(0);
         }

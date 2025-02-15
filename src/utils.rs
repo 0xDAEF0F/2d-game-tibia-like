@@ -2,6 +2,7 @@ use crate::TcpClientMsg;
 use crate::constants::*;
 use egui_macroquad::macroquad::prelude::*;
 use log::trace;
+use std::sync::Mutex;
 use std::{collections::HashMap, sync::Arc};
 use tokio::net::UdpSocket;
 use tokio::net::tcp::OwnedWriteHalf;
@@ -62,7 +63,7 @@ impl PingMonitor {
         PingMonitor::default()
     }
 
-    pub fn ping_server(&mut self, socket: &OwnedWriteHalf) {
+    pub fn ping_server(&mut self, socket: &Arc<Mutex<OwnedWriteHalf>>) {
         let curr_time = get_time();
         if curr_time - self.last_sent_ping_time >= PING_INTERVAL {
             let ping_id = {
@@ -71,7 +72,7 @@ impl PingMonitor {
             };
 
             let serialized_ping = bincode::serialize(&TcpClientMsg::Ping(ping_id)).unwrap();
-            _ = socket.try_write(&serialized_ping);
+            _ = socket.lock().unwrap().try_write(&serialized_ping);
 
             self.pings.insert(ping_id, curr_time);
             self.last_sent_ping_time = curr_time;

@@ -29,5 +29,5 @@ pub enum Cc {
         msg: String,
     },
     Pong(u32), // ping_id
-    Reconnect,
+    ReconnectOk,
 }

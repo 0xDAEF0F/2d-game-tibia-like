@@ -2,13 +2,11 @@ use super::{ChatMessage, MmoContext};
 use crate::TcpClientMsg;
 use egui_macroquad::egui::{self, Key, Modifiers, Pos2};
 use egui_macroquad::macroquad::prelude::*;
-use log::{error, info};
-use tokio::io::AsyncWriteExt;
 
 pub fn create_chat_window(mmo_context: &mut MmoContext, egui_ctx: &egui::Context) {
     let chat = &mut mmo_context.user_chat;
     let text = &mut mmo_context.user_text;
-    let tcp_writer = mmo_context.server_tcp_write_stream;
+    let tcp_writer = &mmo_context.server_tcp_write_stream;
     egui::Window::new("Chat Box")
         .default_pos(Pos2::new((screen_width()) / 2., screen_height()))
         .resizable([true, true])
@@ -36,7 +34,7 @@ pub fn create_chat_window(mmo_context: &mut MmoContext, egui_ctx: &egui::Context
                 if !text.is_empty() {
                     let msg = TcpClientMsg::ChatMsg(text.clone());
                     let serialized = bincode::serialize(&msg).unwrap();
-                    if let Ok(size) = tcp_writer.try_write(&serialized) {
+                    if let Ok(size) = tcp_writer.lock().unwrap().try_write(&serialized) {
                         info!("sent {} bytes", size);
                         info!("sent chat message: {}", text);
                     } else {

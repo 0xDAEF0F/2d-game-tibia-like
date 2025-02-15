@@ -2,14 +2,17 @@ mod chat_window;
 
 use chat_window::create_chat_window;
 use chrono::{DateTime, Local};
-use std::fmt;
+use std::{
+    fmt,
+    sync::{Arc, Mutex},
+};
 use tokio::net::tcp::OwnedWriteHalf;
 
-pub struct MmoContext<'a> {
+pub struct MmoContext {
     pub username: String,
     pub user_text: String,
     pub user_chat: Vec<ChatMessage>,
-    pub server_tcp_write_stream: &'a OwnedWriteHalf,
+    pub server_tcp_write_stream: Arc<Mutex<OwnedWriteHalf>>,
 }
 
 pub struct ChatMessage {
