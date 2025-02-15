@@ -19,9 +19,8 @@ pub fn create_chat_window(mmo_context: &mut MmoContext, egui_ctx: &egui::Context
                 .max_height(200.)
                 .stick_to_bottom(true)
                 .show_rows(ui, row_height, chat.len(), |ui, row_range| {
-                    for (row, msg) in row_range.zip(chat.iter()) {
-                        let text = format!("{}: {}", row + 1, msg);
-                        ui.label(text);
+                    for (_, msg) in row_range.zip(chat.iter()) {
+                        ui.label(msg.to_string());
                     }
                 });
 
