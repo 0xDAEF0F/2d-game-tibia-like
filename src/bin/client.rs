@@ -19,7 +19,7 @@ use std::time::Duration;
 use tiled::{Loader, Map};
 use tokio::io::{AsyncBufReadExt, AsyncReadExt, AsyncWriteExt, BufReader, stdin};
 use tokio::net::TcpStream;
-use tokio::net::{TcpSocket, UdpSocket, tcp::OwnedWriteHalf};
+use tokio::net::{TcpSocket, UdpSocket};
 use tokio::sync::mpsc::UnboundedSender;
 use tokio::sync::mpsc::{self, UnboundedReceiver};
 use uuid::Uuid;
@@ -123,7 +123,8 @@ async fn draw(
     };
 
     let tilesheet = Tilesheet::from_tileset(map.tilesets()[0].clone());
-    let objects_tilesheet = Tilesheet::from_tileset(map.tilesets()[1].clone());
+    let objects_tilesheet_a = Tilesheet::from_tileset(map.tilesets()[1].clone());
+    let objects_tilesheet_b = Tilesheet::from_tileset(map.tilesets()[2].clone());
 
     let mut game_objects = GameObjects::new();
     let mut moving_object: Option<Location> = None;
@@ -194,7 +195,11 @@ async fn draw(
         player.render();
         other_players.render(&player);
 
-        render_objects(&player, &objects_tilesheet, &game_objects);
+        render_objects(
+            &player,
+            &[&objects_tilesheet_a, &objects_tilesheet_b],
+            &game_objects,
+        );
 
         // Handle movement
         handle_player_movement(&mut player, &other_players);
@@ -350,7 +355,7 @@ fn render_view(player: &Player, map: &Map, tilesheet: &Tilesheet) {
     }
 }
 
-fn render_objects(player: &Player, tilesheet: &Tilesheet, game_objects: &GameObjects) {
+fn render_objects(player: &Player, tilesheets: &[&Tilesheet], game_objects: &GameObjects) {
     for i in 0..CAMERA_HEIGHT {
         for j in 0..CAMERA_WIDTH {
             let x = player.curr_location.0 as i32 - CAMERA_WIDTH as i32 / 2 + j as i32;
@@ -366,10 +371,12 @@ fn render_objects(player: &Player, tilesheet: &Tilesheet, game_objects: &GameObj
                 continue;
             }
 
-            let go = &game_objects.0[&(x, y)];
-            let tile_id = go.into();
+            let game_object = &game_objects.0[&(x, y)];
 
-            tilesheet.render_tile_at(tile_id, (j, i));
+            let tile_id = game_object.id();
+            let tilesheet_number = game_object.tileset_location() - 1;
+
+            tilesheets[tilesheet_number].render_tile_at(tile_id, (j, i));
         }
     }
 }

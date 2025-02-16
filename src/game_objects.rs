@@ -25,9 +25,27 @@ impl GameObjects {
         let objects = objects[0].object_data();
 
         let objects = objects.iter().map(|od| {
+            let tile_data = od.tile_data().unwrap();
+            let tiled::TilesetLocation::Map(location) = tile_data.tileset_location() else {
+                panic!("Invalid tileset location layer!");
+            };
+            let tile_id = od.tile_data().expect("expected tile data").id();
+
+            let game_object = match tile_id {
+                149 => GameObject::FlowerPot {
+                    id: tile_id,
+                    tileset_location: *location,
+                },
+                63 => GameObject::Orc {
+                    id: tile_id,
+                    tileset_location: *location,
+                },
+                id => todo!("game object id: {id} is not implemented"),
+            };
+
             (
                 ((od.x / TILE_WIDTH) as u32, (od.y / TILE_HEIGHT) as u32),
-                od.tile_data().expect("expected tile data").id().into(),
+                game_object,
             )
         });
         let objects: HashMap<Location, GameObject> = HashMap::from_iter(objects);
@@ -38,22 +56,26 @@ impl GameObjects {
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
 pub enum GameObject {
-    FlowerPot { id: u32 },
+    FlowerPot { id: u32, tileset_location: usize },
+    Orc { id: u32, tileset_location: usize },
 }
 
-impl From<u32> for GameObject {
-    fn from(id: u32) -> GameObject {
-        match id {
-            149 => GameObject::FlowerPot { id },
-            id => todo!("{id} not implemented"),
+impl GameObject {
+    pub fn id(&self) -> u32 {
+        match self {
+            GameObject::FlowerPot { id, .. } => *id,
+            GameObject::Orc { id, .. } => *id,
         }
     }
-}
 
-impl From<&GameObject> for u32 {
-    fn from(val: &GameObject) -> Self {
-        match val {
-            GameObject::FlowerPot { id } => *id,
+    pub fn tileset_location(&self) -> usize {
+        match self {
+            GameObject::FlowerPot {
+                tileset_location, ..
+            } => *tileset_location,
+            GameObject::Orc {
+                tileset_location, ..
+            } => *tileset_location,
         }
     }
 }

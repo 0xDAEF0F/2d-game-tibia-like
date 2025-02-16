@@ -4,7 +4,7 @@ use crate::{
 };
 use anyhow::Result;
 use futures::future::join_all;
-use log::{debug, error, info, trace, warn};
+use log::{debug, error, info, trace};
 use std::{collections::HashMap, net::SocketAddr, sync::Arc};
 use tokio::{
     io::AsyncWriteExt,

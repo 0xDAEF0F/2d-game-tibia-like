@@ -4,7 +4,6 @@ use egui_macroquad::macroquad::prelude::*;
 use log::trace;
 use std::sync::Mutex;
 use std::{collections::HashMap, sync::Arc};
-use tokio::net::UdpSocket;
 use tokio::net::tcp::OwnedWriteHalf;
 
 pub fn draw_delimitator_lines() {
