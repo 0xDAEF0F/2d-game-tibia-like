@@ -52,6 +52,12 @@ impl GameObjects {
 
         GameObjects(objects)
     }
+
+    pub fn move_object(&mut self, from: Location, to: Location) -> Option<()> {
+        let object = self.0.remove(&from)?;
+        self.0.insert(to, object);
+        Some(())
+    }
 }
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]

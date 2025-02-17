@@ -6,7 +6,6 @@ use my_mmo::server::{MapElement, MmoMap, Player, ServerChannel};
 use my_mmo::{GameObjects, MmoLogger};
 use std::collections::HashMap;
 use std::net::SocketAddr;
-use std::ops::{DerefMut, Index};
 use std::sync::Arc;
 use tokio::net::{TcpListener, UdpSocket};
 use tokio::sync::{Mutex, mpsc};
@@ -40,13 +39,14 @@ async fn main() -> Result<()> {
         mmo_map[player.location] = MapElement::Player(player.id);
     }
     for (&location, obj) in game_objects.lock().await.0.iter() {
-        println!("location -- {location:?}");
         match obj.is_monster() {
-            true => mmo_map[location] = MapElement::Monster,
+            true => {
+                println!("orc is at: {:?}", location);
+                mmo_map[location] = MapElement::Monster(std::time::Instant::now())
+            }
             false => mmo_map[location] = MapElement::Object,
         }
     }
-    // move to arc to pass around tasks
     let mmo_map = Arc::new(Mutex::new(mmo_map));
 
     let (sc_tx, sc_rx) = mpsc::unbounded_channel::<ServerChannel>();
