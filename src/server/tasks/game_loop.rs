@@ -4,7 +4,7 @@ use crate::server::{MapElement, MmoMap};
 use crate::{GameObjects, OtherPlayer, UdpServerMsg};
 use anyhow::Result;
 use itertools::Itertools;
-use log::{debug, error, info, trace};
+use log::{debug, error, trace};
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::net::UdpSocket;
