@@ -68,6 +68,13 @@ impl GameObject {
         }
     }
 
+    pub fn is_monster(&self) -> bool {
+        match self {
+            GameObject::Orc { .. } => true,
+            _ => false,
+        }
+    }
+
     pub fn tileset_location(&self) -> usize {
         match self {
             GameObject::FlowerPot {

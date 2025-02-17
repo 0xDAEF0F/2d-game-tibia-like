@@ -1,5 +1,6 @@
 use super::Players;
 use crate::constants::*;
+use crate::server::MmoMap;
 use crate::{GameObjects, OtherPlayer, UdpServerMsg};
 use anyhow::Result;
 use itertools::Itertools;
@@ -17,6 +18,7 @@ pub fn game_loop_task(
     udp_socket: Udp,
     players: Players,
     game_objects: Objects,
+    mmo_map: Arc<Mutex<MmoMap>>,
 ) -> JoinHandle<Result<()>> {
     tokio::spawn(async move {
         let mut interval = tokio::time::interval(Duration::from_millis(SERVER_TICK_RATE));
@@ -46,7 +48,11 @@ pub fn game_loop_task(
                     if (min_x..=max_x).contains(&(player.location.0 as i32))
                         && (min_y..=max_y).contains(&(player.location.1 as i32))
                     {
+                        let _from = (x, y);
+                        let _to = player.location;
+                        let shortest_path = mmo_map.lock().await.shortest_path(_from, _to);
                         println!("Player {} can see monster at {:?}", player.username, (x, y));
+                        println!("shortest path is: {shortest_path:#?}");
                     }
                 }
 
