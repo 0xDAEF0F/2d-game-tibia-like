@@ -32,7 +32,7 @@ pub fn tcp_reader_task(
                             msg,
                         },
                         TcpServerMsg::ReconnectOk => Cc::ReconnectOk,
-                        TcpServerMsg::InitOk(_, _) => unreachable!(),
+                        TcpServerMsg::InitOk(_) => unreachable!(),
                         TcpServerMsg::InitErr(_) => unreachable!(),
                     };
 

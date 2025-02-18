@@ -88,7 +88,7 @@ pub enum UdpServerMsg {
 pub enum TcpServerMsg {
     Pong(u32),
     ChatMsg { username: String, msg: String },
-    InitOk(Uuid, Location),
+    InitOk(InitPlayer),
     ReconnectOk,
     InitErr(String),
 }
@@ -97,4 +97,16 @@ pub enum TcpServerMsg {
 pub struct OtherPlayer {
     pub username: String,
     pub location: Location,
+}
+
+/// Player initiation state that server instructs
+/// the client to begin with.
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct InitPlayer {
+    pub id: Uuid,
+    pub username: String,
+    pub location: Location,
+    pub hp: u32,
+    pub max_hp: u32,
+    pub level: u32,
 }

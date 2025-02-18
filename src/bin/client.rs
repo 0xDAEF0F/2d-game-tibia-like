@@ -35,16 +35,19 @@ async fn main() -> Result<()> {
     let tcp_socket = TcpSocket::new_v4()?;
     let mut stream = tcp_socket.connect(SERVER_TCP_ADDR.parse()?).await?;
 
-    let (username, user_id, spawn_location) = request_new_session_from_server(&mut stream).await?;
+    let init_player = request_new_session_from_server(&mut stream).await?;
 
-    println!("username: {} was accepted by the server.", username);
+    println!(
+        "username: {} was accepted by the server.",
+        init_player.username
+    );
 
     info!("client connected to server at: {}", SERVER_TCP_ADDR);
 
     let (cc_tx, cc_rx) = mpsc::unbounded_channel::<ClientChannel>();
 
     // Spawn async UDP receive task
-    let join_handle1 = udp_recv_task(socket.clone(), cc_tx.clone(), user_id);
+    let join_handle1 = udp_recv_task(socket.clone(), cc_tx.clone(), init_player.id);
 
     // UDP task is not supposed to finish
     tokio::spawn(async move {
@@ -60,12 +63,15 @@ async fn main() -> Result<()> {
         ..Default::default()
     };
     let player = Player {
-        id: user_id,
-        username,
+        id: init_player.id,
+        username: init_player.username,
+        level: init_player.level,
+        hp: init_player.hp,
+        max_hp: init_player.max_hp,
         request_id: 0,
         speed: BASE_MOVE_DELAY,
-        curr_location: spawn_location,
-        prev_location: spawn_location,
+        curr_location: init_player.location,
+        prev_location: init_player.location,
         last_move_timer: 0.0,
     };
 
@@ -193,6 +199,7 @@ async fn draw(
         // Render players
         render_view(&player, &map, &tilesheet);
         player.render();
+        player.render_health_bar();
         other_players.render(&player);
 
         render_objects(
@@ -491,9 +498,7 @@ fn handle_end_move_object(
     }
 }
 
-async fn request_new_session_from_server(
-    tcp_stream: &mut TcpStream,
-) -> Result<(String, Uuid, Location)> {
+async fn request_new_session_from_server(tcp_stream: &mut TcpStream) -> Result<InitPlayer> {
     loop {
         // request user's username for the session
         let mut username = String::new();
@@ -543,11 +548,11 @@ async fn request_new_session_from_server(
         }
 
         // make sure response is what's expected
-        let TcpServerMsg::InitOk(id, location) = sm else {
+        let TcpServerMsg::InitOk(init_player) = sm else {
             println!("expecting an init ok. retrying everything");
             continue;
         };
 
-        return Ok((username, id, location));
+        return Ok(init_player);
     }
 }

@@ -1,6 +1,6 @@
 use super::Players;
 use crate::server::{Player, Sc, ServerChannel};
-use crate::{TcpClientMsg, TcpServerMsg};
+use crate::{InitPlayer, TcpClientMsg, TcpServerMsg};
 use anyhow::{Context, Result, bail};
 use log::{debug, error, info, trace, warn};
 use std::collections::HashMap;
@@ -63,22 +63,31 @@ fn handle_tcp_stream(
         };
 
         if let AuthType::Connection(username) = auth_type {
-            let uuid = Uuid::new_v4();
-            let spawn_location = (0, 0);
-
             let (tcp_read, mut tcp_write) = stream.into_split();
 
-            let ser = bincode::serialize(&TcpServerMsg::InitOk(uuid, spawn_location)).unwrap();
+            let init_player = InitPlayer {
+                id: Uuid::new_v4(),
+                username: username.clone(),
+                location: (0, 0),
+                hp: 100,
+                max_hp: 100,
+                level: 1,
+            };
+
+            let ser = bincode::serialize(&TcpServerMsg::InitOk(init_player.clone())).unwrap();
             if tcp_write.write_all(&ser).await.is_err() {
                 error!("failed to send init ok to user: {username}");
                 return;
             };
 
-            let new_player = Player::new(uuid, username, user_address, tcp_write);
+            let new_player = Player::new(init_player.id, username, user_address, tcp_write);
 
             // storage
-            address_mapping.lock().await.insert(user_address, uuid);
-            players.lock().await.insert(uuid, new_player);
+            address_mapping
+                .lock()
+                .await
+                .insert(user_address, init_player.id);
+            players.lock().await.insert(init_player.id, new_player);
 
             // set up tcp reader
             setup_tcp_reader(tcp_read, sc_tx.clone(), address_mapping.clone());

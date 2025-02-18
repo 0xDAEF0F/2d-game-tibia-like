@@ -9,6 +9,9 @@ pub struct Player {
     pub id: Uuid,
     pub username: String,
     pub request_id: u32,
+    pub level: u32,
+    pub hp: u32,
+    pub max_hp: u32,
     pub curr_location: Location,
     pub prev_location: Location,
     pub last_move_timer: f64,
@@ -26,6 +29,33 @@ impl Player {
         // draw its username as text right above the player
         // let text_dimensions = measure_text(&self.username, None, 20, 1.0);
         draw_text(&self.username, x, y - 10.0, 20.0, BLACK);
+    }
+
+    /// Renders the player's health bar above the player.
+    pub fn render_health_bar(&self) {
+        let healthbar_pct: f32 = self.hp as f32 / self.max_hp as f32;
+
+        let bar_width = 32.0;
+        let bar_height = 4.0;
+        let offset_y = -6.0; // move the health bar slightly above the player tile
+
+        // background
+        draw_rectangle(
+            (CAMERA_WIDTH / 2) as f32 * TILE_WIDTH,
+            (CAMERA_HEIGHT / 2) as f32 * TILE_HEIGHT + offset_y,
+            bar_width,
+            bar_height,
+            RED,
+        );
+
+        // fill
+        draw_rectangle(
+            (CAMERA_WIDTH / 2) as f32 * TILE_WIDTH,
+            (CAMERA_HEIGHT / 2) as f32 * TILE_HEIGHT + offset_y,
+            bar_width * healthbar_pct,
+            bar_height,
+            GREEN,
+        );
     }
 
     pub fn can_move((x, y): (i32, i32), op: &OtherPlayers) -> bool {
