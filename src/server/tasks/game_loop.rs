@@ -52,6 +52,18 @@ pub fn game_loop_task(
                     {
                         trace!("Monster can see player {}", player.username);
 
+                        // TODO: move elsewhere
+                        fn is_adjacent(a: (i32, i32), b: (i32, i32)) -> bool {
+                            (a.0 - b.0).abs() <= 1 && (a.1 - b.1).abs() <= 1
+                        }
+                        if is_adjacent(
+                            (x as i32, y as i32),
+                            (player.location.0 as i32, player.location.1 as i32),
+                        ) {
+                            trace!("Monster is adjacent to player");
+                            continue;
+                        }
+
                         let mut mmo_map = mmo_map.lock().await;
 
                         let shortest_path = mmo_map.shortest_path(monst_location, player.location);

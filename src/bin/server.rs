@@ -1,5 +1,5 @@
 use anyhow::Result;
-use log::info;
+use log::{info, trace};
 use my_mmo::constants::*;
 use my_mmo::server::tasks::{game_loop_task, sc_rx_task, tcp_listener_task, udp_recv_task};
 use my_mmo::server::{MapElement, MmoMap, Player, ServerChannel};
@@ -7,6 +7,7 @@ use my_mmo::{GameObjects, MmoLogger};
 use std::collections::HashMap;
 use std::net::SocketAddr;
 use std::sync::Arc;
+use std::time::Instant;
 use tokio::net::{TcpListener, UdpSocket};
 use tokio::sync::{Mutex, mpsc};
 use uuid::Uuid;
@@ -41,8 +42,8 @@ async fn main() -> Result<()> {
     for (&location, obj) in game_objects.lock().await.0.iter() {
         match obj.is_monster() {
             true => {
-                println!("orc is at: {:?}", location);
-                mmo_map[location] = MapElement::Monster(std::time::Instant::now())
+                trace!("monster is at: {:?}", location);
+                mmo_map[location] = MapElement::Monster(Instant::now())
             }
             false => mmo_map[location] = MapElement::Object,
         }
