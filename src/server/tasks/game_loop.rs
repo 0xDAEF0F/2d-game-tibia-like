@@ -60,7 +60,7 @@ pub fn game_loop_task(
                             (x as i32, y as i32),
                             (player.location.0 as i32, player.location.1 as i32),
                         ) {
-                            trace!("Monster is adjacent to player");
+                            trace!("Monster is adjacent to player. Skipping...");
                             continue;
                         }
 

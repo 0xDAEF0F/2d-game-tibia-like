@@ -373,6 +373,32 @@ fn render_objects(player: &Player, tilesheets: &[&Tilesheet], game_objects: &Gam
 
             let game_object = &game_objects.0[&(x, y)];
 
+            if let GameObject::Orc { hp, .. } = game_object {
+                let healthbar_pct: f32 = *hp as f32 / ORC_MAX_HP as f32;
+
+                let bar_width = 32.0;
+                let bar_height = 4.0;
+                let offset_y = -6.0; // move the health bar slightly above the Orc tile
+
+                // background
+                draw_rectangle(
+                    j as f32 * TILE_WIDTH,
+                    i as f32 * TILE_HEIGHT + offset_y,
+                    bar_width,
+                    bar_height,
+                    RED,
+                );
+
+                // fill
+                draw_rectangle(
+                    j as f32 * TILE_WIDTH,
+                    i as f32 * TILE_HEIGHT + offset_y,
+                    bar_width * healthbar_pct,
+                    bar_height,
+                    GREEN,
+                );
+            }
+
             let tile_id = game_object.id();
             let tilesheet_number = game_object.tileset_location() - 1;
 

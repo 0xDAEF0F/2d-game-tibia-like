@@ -39,6 +39,7 @@ impl GameObjects {
                 63 => GameObject::Orc {
                     id: tile_id,
                     tileset_location: *location,
+                    hp: 100,
                 },
                 id => todo!("game object id: {id} is not implemented"),
             };
@@ -60,10 +61,19 @@ impl GameObjects {
     }
 }
 
+pub const ORC_MAX_HP: u32 = 100;
+
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
 pub enum GameObject {
-    FlowerPot { id: u32, tileset_location: usize },
-    Orc { id: u32, tileset_location: usize },
+    FlowerPot {
+        id: u32,
+        tileset_location: usize,
+    },
+    Orc {
+        id: u32,
+        tileset_location: usize,
+        hp: u32,
+    },
 }
 
 impl GameObject {

@@ -23,6 +23,7 @@ uuid = { version = "1.13.1", features = [
 ] }
 futures = "0.3.31"
 tokio-util = { version = "0.7.13", features = ["codec", "net"] }
+async-trait = "0.1.86"
 
 [profile.dev.package.'*']
 opt-level = 3

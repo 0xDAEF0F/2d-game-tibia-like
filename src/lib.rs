@@ -9,12 +9,26 @@ mod utils;
 pub use game_objects::*;
 pub use logger::*;
 pub use tilesheet::*;
+use tokio::net::UdpSocket;
 pub use utils::*;
 
+use anyhow::Result;
 use serde::{Deserialize, Serialize};
+use std::net::SocketAddr;
 use uuid::Uuid;
 
 pub type Location = (u32, u32); // (x, y) coordinates
+
+pub trait SendableSync {
+    fn send_msg<T: Serialize>(&self, msg: &T, to: SocketAddr) -> Result<usize>;
+}
+
+impl SendableSync for UdpSocket {
+    fn send_msg<T: Serialize>(&self, msg: &T, to: SocketAddr) -> Result<usize> {
+        let buf = bincode::serialize(msg)?;
+        Ok(self.try_send_to(&buf, to)?)
+    }
+}
 
 // Client -> Server
 #[derive(Debug, Serialize, Deserialize)]
@@ -51,11 +65,10 @@ pub enum UdpClientMsg {
 
 impl UdpClientMsg {
     pub fn get_player_id(&self) -> Uuid {
-        let id = match self {
-            UdpClientMsg::Ping { id, .. } => id,
-            UdpClientMsg::PlayerMove { id, .. } => id,
-        };
-        *id
+        match self {
+            UdpClientMsg::Ping { id, .. } => *id,
+            UdpClientMsg::PlayerMove { id, .. } => *id,
+        }
     }
 }
 
