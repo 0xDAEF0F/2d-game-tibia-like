@@ -1,4 +1,5 @@
 use anyhow::Result;
+use egui_macroquad::egui::color_picker::color_picker_hsva_2d;
 use egui_macroquad::macroquad;
 use log::{debug, error, info};
 use macroquad::Window;
@@ -425,6 +426,18 @@ fn render_objects(player: &Player, tilesheets: &[&Tilesheet], game_objects: &Gam
                     bar_height,
                     GREEN,
                 );
+
+                let tile_id = match direction {
+                    Direction::South => 63,
+                    Direction::North => 66,
+                    Direction::East => 69,
+                    Direction::West => 72,
+                };
+                let tilesheet_number = game_object.tileset_location() - 1;
+
+                tilesheets[tilesheet_number].render_tile_at(tile_id, (j, i));
+
+                continue;
             }
 
             let tile_id = game_object.id();
