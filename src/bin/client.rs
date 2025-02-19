@@ -10,6 +10,7 @@ use my_mmo::client::tasks::tcp_reader_task;
 use my_mmo::client::tasks::udp_recv_task;
 use my_mmo::client::{MmoContext, OtherPlayers, Player, make_egui};
 use my_mmo::constants::*;
+use my_mmo::server::Direction;
 use my_mmo::*;
 use std::collections::HashMap;
 use std::net::SocketAddr;
@@ -73,6 +74,7 @@ async fn main() -> Result<()> {
         curr_location: init_player.location,
         prev_location: init_player.location,
         last_move_timer: 0.0,
+        direction: init_player.direction,
     };
 
     Window::from_config(conf, draw(socket, stream, cc_rx, cc_tx, player));
@@ -334,6 +336,17 @@ fn move_player(player: &mut Player, direction: (isize, isize), current_time: f64
     player.last_move_timer = current_time;
     player.speed = speed;
     debug!("moving player to {:?}", player.curr_location);
+
+    let direction = match direction {
+        (1, 0) => Direction::East,
+        (-1, 0) => Direction::West,
+        (0, -1) => Direction::North,
+        (0, 1) => Direction::South,
+        // TODO: fix diagonal movement
+        _ => Direction::South,
+    };
+
+    player.direction = direction;
 }
 
 /// Renders the camera around the player

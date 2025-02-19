@@ -1,5 +1,5 @@
 use super::Players;
-use crate::server::{Player, Sc, ServerChannel};
+use crate::server::{Direction, Player, Sc, ServerChannel};
 use crate::{InitPlayer, TcpClientMsg, TcpServerMsg};
 use anyhow::{Context, Result, bail};
 use log::{debug, error, info, trace, warn};
@@ -72,6 +72,7 @@ fn handle_tcp_stream(
                 hp: 100,
                 max_hp: 100,
                 level: 1,
+                direction: Direction::South,
             };
 
             let ser = bincode::serialize(&TcpServerMsg::InitOk(init_player.clone())).unwrap();

@@ -8,6 +8,7 @@ mod utils;
 
 pub use game_objects::*;
 pub use logger::*;
+use server::Direction;
 pub use tilesheet::*;
 use tokio::net::UdpSocket;
 pub use utils::*;
@@ -109,4 +110,5 @@ pub struct InitPlayer {
     pub hp: u32,
     pub max_hp: u32,
     pub level: u32,
+    pub direction: Direction,
 }

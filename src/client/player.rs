@@ -1,6 +1,7 @@
 use crate::Location;
 use crate::Tilesheet;
 use crate::constants::*;
+use crate::server::Direction;
 use egui_macroquad::macroquad::prelude::*;
 use std::collections::HashMap;
 use uuid::Uuid;
@@ -17,6 +18,7 @@ pub struct Player {
     pub prev_location: Location,
     pub last_move_timer: f64,
     pub speed: f32,
+    pub direction: Direction,
 }
 
 impl Player {
@@ -28,7 +30,14 @@ impl Player {
 
         draw_text(&self.username, x, y - 10.0, 20.0, BLACK);
 
-        tilesheet.render_tile_at(2, (CAMERA_WIDTH / 2, CAMERA_HEIGHT / 2));
+        let tile_to_render = match self.direction {
+            Direction::North => 4,
+            Direction::South => 1,
+            Direction::West => 10,
+            Direction::East => 7,
+        };
+
+        tilesheet.render_tile_at(tile_to_render, (CAMERA_WIDTH / 2, CAMERA_HEIGHT / 2));
     }
 
     /// Renders the player's health bar above the player.
