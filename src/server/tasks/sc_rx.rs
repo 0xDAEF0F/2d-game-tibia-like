@@ -1,6 +1,6 @@
 use crate::{
     GameObjects, TcpServerMsg, UdpServerMsg,
-    server::{Player, Sc, ServerChannel},
+    server::{Direction, Player, Sc, ServerChannel},
 };
 use anyhow::Result;
 use futures::future::join_all;
@@ -42,10 +42,24 @@ pub fn sc_rx_task(
                         continue;
                     }
 
+                    let (old_x, old_y) = player.location;
+                    let (new_x, new_y) = location;
+                    if new_x > old_x {
+                        player.direction = Direction::East;
+                    } else if new_x < old_x {
+                        player.direction = Direction::West;
+                    } else if new_y > old_y {
+                        player.direction = Direction::South;
+                    } else if new_y < old_y {
+                        player.direction = Direction::North;
+                    }
+
                     debug!(
                         "received player move from {} at {:?}",
                         player.username, location
                     );
+
+                    log::debug!("player direction is: {:?}", player.direction);
 
                     // TODO: check if location is valid
                     player.client_request_id = client_request_id;
