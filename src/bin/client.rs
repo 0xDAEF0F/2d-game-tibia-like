@@ -128,9 +128,11 @@ async fn draw(
         loader.load_tmx_map("assets/basic-map.tmx").unwrap()
     };
 
+    // TODO: refactor
     let tilesheet = Tilesheet::from_tileset(map.tilesets()[0].clone());
     let objects_tilesheet_a = Tilesheet::from_tileset(map.tilesets()[1].clone());
     let objects_tilesheet_b = Tilesheet::from_tileset(map.tilesets()[2].clone());
+    let player_tilesheet = Tilesheet::from_tileset(map.tilesets()[3].clone());
 
     let mut game_objects = GameObjects::new();
     let mut moving_object: Option<Location> = None;
@@ -198,7 +200,7 @@ async fn draw(
 
         // Render players
         render_view(&player, &map, &tilesheet);
-        player.render();
+        player.render(&player_tilesheet);
         player.render_health_bar();
         other_players.render(&player);
 
@@ -340,6 +342,10 @@ fn render_view(player: &Player, map: &Map, tilesheet: &Tilesheet) {
         for j in 0..CAMERA_WIDTH {
             let x = player.curr_location.0 as i32 - CAMERA_WIDTH as i32 / 2 + j as i32;
             let y = player.curr_location.1 as i32 - CAMERA_HEIGHT as i32 / 2 + i as i32;
+
+            // if (x as u32, y as u32) == player.curr_location {
+            //     debug!("{x},{y}",);
+            // }
 
             let tile_id = map
                 .get_layer(0)

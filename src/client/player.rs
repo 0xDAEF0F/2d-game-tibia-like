@@ -1,4 +1,5 @@
 use crate::Location;
+use crate::Tilesheet;
 use crate::constants::*;
 use egui_macroquad::macroquad::prelude::*;
 use std::collections::HashMap;
@@ -20,15 +21,14 @@ pub struct Player {
 
 impl Player {
     /// Renders the player in the middle of the viewport.
-    pub fn render(&self) {
+    pub fn render(&self, tilesheet: &Tilesheet) {
+        // Note: this is in screen coordinates.
         let x = (CAMERA_WIDTH / 2) as f32 * TILE_WIDTH;
         let y = (CAMERA_HEIGHT / 2) as f32 * TILE_HEIGHT;
-        draw_rectangle(x, y, TILE_WIDTH, TILE_HEIGHT, RED);
 
-        // TODO: refactor this and need to center the text correctly above the player
-        // draw its username as text right above the player
-        // let text_dimensions = measure_text(&self.username, None, 20, 1.0);
         draw_text(&self.username, x, y - 10.0, 20.0, BLACK);
+
+        tilesheet.render_tile_at(2, (CAMERA_WIDTH / 2, CAMERA_HEIGHT / 2));
     }
 
     /// Renders the player's health bar above the player.

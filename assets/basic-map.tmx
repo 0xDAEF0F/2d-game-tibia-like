@@ -3,6 +3,7 @@
  <tileset firstgid="1" source="grass-tileset.tsx"/>
  <tileset firstgid="65" source="props-tileset.tsx"/>
  <tileset firstgid="321" source="tibia-sprites.tsx"/>
+ <tileset firstgid="465" source="chars-tileset.tsx"/>
  <layer id="1" name="Tile Layer 1" width="30" height="20">
   <data encoding="csv">
 1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,
