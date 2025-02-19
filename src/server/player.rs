@@ -4,7 +4,7 @@ use std::net::SocketAddr;
 use tokio::net::tcp::OwnedWriteHalf;
 use uuid::Uuid;
 
-#[derive(Debug, Serialize, Deserialize, Clone, Copy)]
+#[derive(Debug, Serialize, Deserialize, Clone, Copy, PartialEq, Eq)]
 pub enum Direction {
     North,
     South,

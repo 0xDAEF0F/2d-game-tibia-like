@@ -399,7 +399,9 @@ fn render_objects(player: &Player, tilesheets: &[&Tilesheet], game_objects: &Gam
 
             let game_object = &game_objects.0[&(x, y)];
 
-            if let GameObject::Orc { hp, .. } = game_object {
+            if let GameObject::Orc { hp, direction, .. } = game_object {
+                log::trace!("Orc direction is: {direction:?}",);
+
                 let healthbar_pct: f32 = *hp as f32 / ORC_MAX_HP as f32;
 
                 let bar_width = 32.0;

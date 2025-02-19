@@ -80,7 +80,7 @@ pub fn game_loop_task(
                         };
 
                         if last_movement.elapsed() < Duration::from_millis(200) {
-                            debug!("Monster cant move yet");
+                            log::trace!("Monster cant move yet (cooldown)");
                             continue;
                         }
 

@@ -1,4 +1,4 @@
-use crate::{Location, constants::*};
+use crate::{Location, calculate_new_direction, constants::*, server::Direction};
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -40,6 +40,7 @@ impl GameObjects {
                     id: tile_id,
                     tileset_location: *location,
                     hp: 100,
+                    direction: Direction::South,
                 },
                 id => todo!("game object id: {id} is not implemented"),
             };
@@ -55,7 +56,12 @@ impl GameObjects {
     }
 
     pub fn move_object(&mut self, from: Location, to: Location) -> Option<()> {
-        let object = self.0.remove(&from)?;
+        let mut object = self.0.remove(&from)?;
+        if object.is_monster() {
+            let direction = calculate_new_direction(from, to);
+            log::debug!("changing direction of monster to: {:?}", direction);
+            object.change_direction(direction);
+        }
         self.0.insert(to, object);
         Some(())
     }
@@ -73,6 +79,7 @@ pub enum GameObject {
         id: u32,
         tileset_location: usize,
         hp: u32,
+        direction: Direction,
     },
 }
 
@@ -88,6 +95,13 @@ impl GameObject {
         match self {
             GameObject::Orc { .. } => true,
             _ => false,
+        }
+    }
+
+    pub fn change_direction(&mut self, direction: Direction) {
+        match self {
+            GameObject::Orc { direction: d, .. } => *d = direction,
+            _ => (),
         }
     }
 

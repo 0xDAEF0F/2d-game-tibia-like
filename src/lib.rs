@@ -112,3 +112,22 @@ pub struct InitPlayer {
     pub level: u32,
     pub direction: Direction,
 }
+
+pub fn calculate_new_direction(prev: Location, target: Location) -> Direction {
+    let (px, py) = prev;
+    let (tx, ty) = target;
+
+    if px == tx {
+        if py < ty {
+            Direction::South
+        } else {
+            Direction::North
+        }
+    } else {
+        if px < tx {
+            Direction::East
+        } else {
+            Direction::West
+        }
+    }
+}
