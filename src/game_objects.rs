@@ -55,6 +55,10 @@ impl GameObjects {
         GameObjects(objects)
     }
 
+    pub fn get_objects(self) -> Vec<(Location, GameObject)> {
+        self.0.into_iter().collect()
+    }
+
     pub fn move_object(&mut self, from: Location, to: Location) -> Option<()> {
         let mut object = self.0.remove(&from)?;
         if object.is_monster() {

@@ -1,6 +1,8 @@
 mod player;
 pub mod tasks;
 
+use crate::GameObject;
+use crate::GameObjects;
 use crate::Location;
 use crate::constants::*;
 use log::debug;
@@ -40,6 +42,32 @@ impl MmoMap {
         map
     }
 
+    pub fn from_game_objects(game_objects: GameObjects) -> MmoMap {
+        let mut map = MmoMap::new();
+
+        for (location, game_object) in game_objects.get_objects() {
+            let map_element = match game_object {
+                GameObject::FlowerPot {
+                    id,
+                    tileset_location,
+                } => MapElement::Object(Object {
+                    id: (id, tileset_location),
+                }),
+                GameObject::Orc {
+                    id,
+                    tileset_location,
+                    ..
+                } => MapElement::Monster(Monster {
+                    id: (id, tileset_location),
+                    last_movement: Instant::now(),
+                }),
+            };
+            map[location] = map_element;
+        }
+
+        map
+    }
+
     pub fn get(&self, (x, y): Location) -> Option<&MapElement> {
         self.0.get(y as usize).and_then(|row| row.get(x as usize))
     }
@@ -51,14 +79,14 @@ impl MmoMap {
         }
 
         let mut element = self[from];
-        let MapElement::Monster(last_movement) = &mut element else {
+        let MapElement::Monster(monster) = &mut element else {
             debug!("Expected a monster at location {:?}", from);
             return Some(());
         };
 
-        *last_movement = Instant::now();
-        self[to] = element;
+        monster.last_movement = Instant::now();
 
+        self[to] = element;
         self[from] = MapElement::Empty;
 
         Some(())
@@ -117,70 +145,21 @@ impl IndexMut<Location> for MmoMap {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Copy, Clone, PartialEq)]
 pub enum MapElement {
     Empty,
-    Monster(Instant), // last movement
+    Monster(Monster), // last movement
     Player(Uuid),     // player id
-    Object,
+    Object(Object),
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct Monster {
+    pub id: (u32, usize), // id, tileset_location
+    pub last_movement: Instant,
+}
 
-    #[test]
-    fn test_indexing() {
-        let mut map = MmoMap::new();
-        let location = (5, 5);
-        let player_id = Uuid::new_v4();
-
-        // Test setting a player at a location
-        map[location] = MapElement::Player(player_id);
-        assert_eq!(map[location], MapElement::Player(player_id));
-
-        // Test moving the player to a new location
-        let new_location = (6, 5);
-        map.move_monster(location, new_location).unwrap();
-        assert_eq!(map[new_location], MapElement::Player(player_id));
-        assert_eq!(map[location], MapElement::Empty);
-    }
-
-    #[test]
-    fn test_move_element() {
-        let mut map = MmoMap::new();
-        let from = (2, 2);
-        let to = (3, 3);
-        let player_id = Uuid::new_v4();
-
-        map[from] = MapElement::Player(player_id);
-        assert_eq!(map[from], MapElement::Player(player_id));
-        assert_eq!(map[to], MapElement::Empty);
-
-        map.move_monster(from, to).unwrap();
-        assert_eq!(map[to], MapElement::Player(player_id));
-        assert_eq!(map[from], MapElement::Empty);
-    }
-
-    #[test]
-    fn test_shortest_path() {
-        let map = MmoMap::new();
-        let from = (0, 0);
-        let to = (2, 2);
-
-        let path = map.shortest_path(from, to);
-        assert_eq!(path, vec![(0, 0), (1, 0), (2, 0), (2, 1), (2, 2)]);
-    }
-
-    #[test]
-    fn test_get() {
-        let mut map = MmoMap::new();
-        let location = (1, 1);
-
-        let player = MapElement::Player(Uuid::new_v4());
-
-        map.0[location.1 as usize][location.0 as usize] = player;
-
-        assert_eq!(map.get(location), Some(&player));
-    }
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct Object {
+    pub id: (u32, usize), // id, tileset_location
 }

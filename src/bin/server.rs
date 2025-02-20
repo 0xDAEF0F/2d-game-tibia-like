@@ -1,13 +1,12 @@
 use anyhow::Result;
-use log::{info, trace};
+use log::info;
 use my_mmo::constants::*;
 use my_mmo::server::tasks::{game_loop_task, sc_rx_task, tcp_listener_task, udp_recv_task};
-use my_mmo::server::{MapElement, MmoMap, Player, ServerChannel};
+use my_mmo::server::{MmoMap, Player, ServerChannel};
 use my_mmo::{GameObjects, MmoLogger};
 use std::collections::HashMap;
 use std::net::SocketAddr;
 use std::sync::Arc;
-use std::time::Instant;
 use tokio::net::{TcpListener, UdpSocket};
 use tokio::sync::{Mutex, mpsc};
 use uuid::Uuid;
@@ -30,24 +29,11 @@ async fn main() -> Result<()> {
     let players = Arc::new(Mutex::new(players));
 
     let game_objects = GameObjects::new();
+    let game_objects_2 = GameObjects::new();
     let game_objects = Arc::new(Mutex::new(game_objects));
 
     // mmo map setup
-    let mut mmo_map: MmoMap = MmoMap::new();
-
-    // initiation of state
-    for player in players.lock().await.values() {
-        mmo_map[player.location] = MapElement::Player(player.id);
-    }
-    for (&location, obj) in game_objects.lock().await.0.iter() {
-        match obj.is_monster() {
-            true => {
-                trace!("monster is at: {:?}", location);
-                mmo_map[location] = MapElement::Monster(Instant::now())
-            }
-            false => mmo_map[location] = MapElement::Object,
-        }
-    }
+    let mmo_map = MmoMap::from_game_objects(game_objects_2);
     let mmo_map = Arc::new(Mutex::new(mmo_map));
 
     let (sc_tx, sc_rx) = mpsc::unbounded_channel::<ServerChannel>();

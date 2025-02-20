@@ -74,12 +74,12 @@ pub fn game_loop_task(
                             continue;
                         }
 
-                        let MapElement::Monster(last_movement) = mmo_map[monst_location] else {
+                        let MapElement::Monster(monster) = &mmo_map[monst_location] else {
                             debug!("Invalid monster location");
                             continue;
                         };
 
-                        if last_movement.elapsed() < Duration::from_millis(200) {
+                        if monster.last_movement.elapsed() < Duration::from_millis(200) {
                             log::trace!("Monster cant move yet (cooldown)");
                             continue;
                         }

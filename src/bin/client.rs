@@ -1,30 +1,21 @@
 use anyhow::Result;
-use egui_macroquad::egui::color_picker::color_picker_hsva_2d;
 use egui_macroquad::macroquad;
 use log::{debug, error, info};
-use macroquad::Window;
-use macroquad::prelude::*;
-use my_mmo::client::Cc;
-use my_mmo::client::ChatMessage;
-use my_mmo::client::ClientChannel;
-use my_mmo::client::tasks::tcp_reader_task;
-use my_mmo::client::tasks::udp_recv_task;
+use macroquad::{Window, prelude::*};
+use my_mmo::client::tasks::{tcp_reader_task, udp_recv_task};
+use my_mmo::client::{Cc, ChatMessage, ClientChannel};
 use my_mmo::client::{MmoContext, OtherPlayers, Player, make_egui};
 use my_mmo::constants::*;
 use my_mmo::server::Direction;
 use my_mmo::*;
 use std::collections::HashMap;
 use std::net::SocketAddr;
-use std::sync::Arc;
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use tiled::{Loader, Map};
 use tokio::io::{AsyncBufReadExt, AsyncReadExt, AsyncWriteExt, BufReader, stdin};
-use tokio::net::TcpStream;
-use tokio::net::{TcpSocket, UdpSocket};
-use tokio::sync::mpsc::UnboundedSender;
-use tokio::sync::mpsc::{self, UnboundedReceiver};
-use uuid::Uuid;
+use tokio::net::{TcpSocket, TcpStream, UdpSocket};
+use tokio::sync::mpsc::{self, UnboundedReceiver, UnboundedSender};
 
 #[tokio::main]
 async fn main() -> Result<()> {

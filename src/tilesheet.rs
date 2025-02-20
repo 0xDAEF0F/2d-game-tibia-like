@@ -1,9 +1,8 @@
+use crate::Location;
 use egui_macroquad::macroquad::prelude::*;
 use log::info;
 use std::sync::Arc;
 use tiled::Tileset;
-
-use crate::Location;
 
 /// A container for a tileset and the texture it references.
 #[derive(Debug)]
@@ -34,12 +33,6 @@ impl Tilesheet {
     pub fn render_tile_at(&self, tile_id: u32, location: Location) {
         let (x_coordinate, y_coordinate) = location;
         let (tile_x, tile_y, width, height) = self.tile_rect(tile_id);
-        // 32, 0, 32, 32
-        // if tile_id == 2 {
-        //     println!("{:?}", self.tile_rect(tile_id));
-        // }
-        // let tileset_name = &self.tileset.name;
-        // debug!("drawing from {tileset_name}",);
         draw_texture_ex(
             &self.texture,
             x_coordinate as f32 * width,
