@@ -336,6 +336,7 @@ fn move_player(player: &mut Player, direction: (isize, isize), current_time: f64
     player.curr_location.1 = (player.curr_location.1 as isize + direction.1) as u32;
     player.last_move_timer = current_time;
     player.speed = speed;
+
     debug!("moving player to {:?}", player.curr_location);
 
     let direction = match direction {
@@ -343,8 +344,11 @@ fn move_player(player: &mut Player, direction: (isize, isize), current_time: f64
         (-1, 0) => Direction::West,
         (0, -1) => Direction::North,
         (0, 1) => Direction::South,
-        // TODO: fix diagonal movement
-        _ => Direction::South,
+        (_, 1) => Direction::South,
+        (_, -1) => Direction::North,
+        (1, _) => Direction::East,
+        (-1, _) => Direction::West,
+        _ => unreachable!(),
     };
 
     player.direction = direction;

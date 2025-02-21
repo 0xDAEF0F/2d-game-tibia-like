@@ -110,7 +110,10 @@ impl OtherPlayers {
             let x = x - px + CAMERA_WIDTH as i32 / 2;
             let y = y - py + CAMERA_HEIGHT as i32 / 2;
 
-            render_entity_name(&op.username, (x as f32 * TILE_WIDTH, y as f32 * TILE_HEIGHT));
+            render_entity_name(
+                &op.username,
+                (x as f32 * TILE_WIDTH, y as f32 * TILE_HEIGHT),
+            );
             render_player(op.direction, (x as u32, y as u32), tilesheet, op.frame);
         }
     }

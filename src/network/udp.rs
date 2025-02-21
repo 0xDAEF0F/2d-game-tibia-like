@@ -33,8 +33,8 @@ pub enum UdpClientMsg {
     MoveObject {
         id: Uuid,
         from: Location,
-        to: Location
-    }
+        to: Location,
+    },
 }
 
 impl UdpClientMsg {
