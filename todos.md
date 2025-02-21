@@ -10,13 +10,15 @@
 
 ## Improvements/Refactorings
 
+- [ ] Display other users' names above their heads.
+- [ ] Only be able to move objects if you are adjacent to them.
 - [ ] Must decouple `game_objects` from the server.
 - [x] Other players must turn direction adequately.
 - [x] Implement traits to deserialize/serialize and send through UDP/TCP.
 
 ## Bugs
 
-- [ ] Monster pathfinding does not work properly when player moves.
-- [ ] Fix moving objects and migrate to UDP instead of TCP.
 - [ ] Monster must not retarget players like crazy.
 - [ ] Fix diagonal movements for players/monsters (other players are turning fine).
+- [ ] Monster pathfinding does not work properly when player moves.
+- [x] Fix moving objects and migrate to UDP instead of TCP.

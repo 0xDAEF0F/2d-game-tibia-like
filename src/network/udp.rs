@@ -30,6 +30,11 @@ pub enum UdpClientMsg {
         id: Uuid,
         client_request_id: u32,
     },
+    MoveObject {
+        id: Uuid,
+        from: Location,
+        to: Location
+    }
 }
 
 impl UdpClientMsg {
@@ -37,6 +42,7 @@ impl UdpClientMsg {
         match self {
             UdpClientMsg::Ping { id, .. } => *id,
             UdpClientMsg::PlayerMove { id, .. } => *id,
+            UdpClientMsg::MoveObject { id, .. } => *id,
         }
     }
 }

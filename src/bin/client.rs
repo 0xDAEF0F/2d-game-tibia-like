@@ -519,8 +519,8 @@ fn handle_end_move_object(
             );
 
             game_objects.0.insert((x, y), obj);
-            // TODO: Fix bug here
-            let msg = TcpClientMsg::MoveObject {
+            let msg = UdpClientMsg::MoveObject {
+                id: player.id,
                 from: moving_obj,
                 to: (x, y),
             };

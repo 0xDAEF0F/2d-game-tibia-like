@@ -47,6 +47,7 @@ pub fn udp_recv_task(
                     client_request_id,
                     location,
                 },
+                UdpClientMsg::MoveObject { from, to, .. } => Sc::MoveObject { from, to },
             };
 
             let sc = ServerChannel { id: user_id, msg };
