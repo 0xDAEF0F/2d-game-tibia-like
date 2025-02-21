@@ -3,6 +3,7 @@
 ## Features
 
 - [ ] Implement simple combat system.
+- [x] Never spawn a player in the same spot as somebody else.
 - [x] Animate movement of player/objects between their sprites.
 - [x] Other players must be rendered with an avatar in the client.
 - [x] Monster(s) must change directions when walking.

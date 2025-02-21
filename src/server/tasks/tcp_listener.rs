@@ -1,7 +1,8 @@
 use super::Players;
-use crate::InitPlayer;
+use crate::constants::{MAP_HEIGHT, MAP_WIDTH};
 use crate::server::{Direction, Player, Sc, ServerChannel};
 use crate::tcp::*;
+use crate::{InitPlayer, Location};
 use anyhow::{Context, Result, bail};
 use log::{debug, error, info, trace, warn};
 use std::collections::HashMap;
@@ -66,10 +67,25 @@ fn handle_tcp_stream(
         if let AuthType::Connection(username) = auth_type {
             let (tcp_read, mut tcp_write) = stream.into_split();
 
+            async fn generate_spawn_location(
+                players: Arc<Mutex<HashMap<Uuid, Player>>>,
+            ) -> Location {
+                let players = players.lock().await;
+                let taken_locations = players.values().map(|p| p.location).collect::<Vec<_>>();
+                use egui_macroquad::macroquad::rand::gen_range;
+                loop {
+                    let x = gen_range(0, MAP_WIDTH - 1);
+                    let y = gen_range(0, MAP_HEIGHT - 1);
+                    if !taken_locations.contains(&(x, y)) {
+                        return (x, y);
+                    }
+                }
+            }
+
             let init_player = InitPlayer {
                 id: Uuid::new_v4(),
                 username: username.clone(),
-                location: (0, 0),
+                location: generate_spawn_location(players.clone()).await,
                 hp: 100,
                 max_hp: 100,
                 level: 1,
