@@ -30,14 +30,20 @@ impl Player {
 
         draw_text(&self.username, x, y - 10.0, 20.0, BLACK);
 
-        let tile_to_render = match self.direction {
-            Direction::North => 4,
-            Direction::South => 1,
-            Direction::West => 10,
-            Direction::East => 7,
-        };
+        // let tile_to_render = match self.direction {
+        //     Direction::North => 4,
+        //     Direction::South => 1,
+        //     Direction::West => 10,
+        //     Direction::East => 7,
+        // };
 
-        tilesheet.render_tile_at(tile_to_render, (CAMERA_WIDTH / 2, CAMERA_HEIGHT / 2));
+        // tilesheet.render_tile_at(tile_to_render, (CAMERA_WIDTH / 2, CAMERA_HEIGHT / 2));
+
+        render_player(
+            self.direction,
+            (CAMERA_WIDTH / 2, CAMERA_HEIGHT / 2),
+            tilesheet,
+        );
     }
 
     /// Renders the player's health bar above the player.
@@ -89,7 +95,7 @@ impl Player {
 pub struct OtherPlayers(pub HashMap<String, Location>);
 
 impl OtherPlayers {
-    pub fn render(&self, player: &Player) {
+    pub fn render(&self, player: &Player, tilesheet: &Tilesheet) {
         for &(x, y) in self.0.values() {
             let (x, y) = (x as i32, y as i32);
             let (px, py) = (player.curr_location.0 as i32, player.curr_location.1 as i32);
@@ -107,10 +113,25 @@ impl OtherPlayers {
             }
 
             // determine where to render relative to the player
-            let x = (x - px + CAMERA_WIDTH as i32 / 2) as f32 * TILE_WIDTH;
-            let y = (y - py + CAMERA_HEIGHT as i32 / 2) as f32 * TILE_HEIGHT;
+            let x = x - px + CAMERA_WIDTH as i32 / 2;
+            let y = y - py + CAMERA_HEIGHT as i32 / 2;
 
-            draw_rectangle(x, y, TILE_WIDTH, TILE_HEIGHT, MAGENTA);
+            // TODO: need the direction of the other player.
+            render_player(player.direction, (x as u32, y as u32), tilesheet);
         }
     }
+}
+
+/// Renders only the game master avatar for the time being.
+pub fn render_player(direction: Direction, location: Location, tilesheet: &Tilesheet) {
+    // assert_eq!(tilesheet.name(), "chars", "Wrong `Tilesheet`");
+
+    let tile_to_render = match direction {
+        Direction::North => 4,
+        Direction::South => 1,
+        Direction::West => 10,
+        Direction::East => 7,
+    };
+
+    tilesheet.render_tile_at(tile_to_render, location);
 }

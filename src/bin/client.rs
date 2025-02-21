@@ -22,7 +22,7 @@ use tokio::sync::mpsc::{self, UnboundedReceiver, UnboundedSender};
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    MmoLogger::init("debug");
+    MmoLogger::init("trace");
 
     let socket = UdpSocket::bind("0.0.0.0:0").await?;
     let socket = Arc::new(socket);
@@ -207,7 +207,7 @@ async fn draw(
         render_view(&player, &map, &tilesheet);
         player.render(&player_tilesheet);
         player.render_health_bar();
-        other_players.render(&player);
+        other_players.render(&player, &player_tilesheet);
 
         render_objects(
             &player,

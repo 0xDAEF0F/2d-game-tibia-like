@@ -12,6 +12,10 @@ pub struct Tilesheet {
 }
 
 impl Tilesheet {
+    pub fn name(&self) -> &str {
+        &self.tileset.name
+    }
+
     /// Create a tilesheet from a Tiled tileset, loading its texture along the way.
     pub fn from_tileset(tileset: Arc<Tileset>) -> Tilesheet {
         let tileset_image = tileset.image.as_ref().unwrap();
