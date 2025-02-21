@@ -1,4 +1,4 @@
-use crate::{GameObjects, Location, OtherPlayer};
+use crate::{GameObjects, Location, server::Direction};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -9,7 +9,11 @@ pub enum UdpServerMsg {
         location: Location,
         client_request_id: u32,
     },
-    RestOfPlayers(Vec<OtherPlayer>),
+    OtherPlayer {
+        username: String,
+        location: Location,
+        direction: Direction,
+    },
     Objects(GameObjects),
     Pong(u32),
 }

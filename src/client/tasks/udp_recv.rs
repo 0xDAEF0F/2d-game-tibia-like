@@ -28,13 +28,6 @@ pub fn udp_recv_task(
                         };
                         cc_tx.send(cc)?;
                     }
-                    UdpServerMsg::RestOfPlayers(other_players) => {
-                        let cc = ClientChannel {
-                            id: user_id,
-                            msg: Cc::RestOfPlayers(other_players),
-                        };
-                        cc_tx.send(cc)?;
-                    }
                     UdpServerMsg::Objects(game_objects) => {
                         let cc = ClientChannel {
                             id: user_id,
@@ -43,6 +36,21 @@ pub fn udp_recv_task(
                         cc_tx.send(cc)?;
                     }
                     UdpServerMsg::Pong(_) => todo!(),
+                    UdpServerMsg::OtherPlayer {
+                        username,
+                        location,
+                        direction,
+                    } => {
+                        let cc = ClientChannel {
+                            id: user_id,
+                            msg: Cc::OtherPlayer {
+                                username,
+                                location,
+                                direction,
+                            },
+                        };
+                        cc_tx.send(cc)?;
+                    }
                 };
             }
         }

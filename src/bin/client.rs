@@ -6,7 +6,7 @@ use my_mmo::client::tasks::{tcp_reader_task, udp_recv_task};
 use my_mmo::client::{Cc, ChatMessage, ClientChannel};
 use my_mmo::client::{MmoContext, OtherPlayers, Player, make_egui};
 use my_mmo::constants::*;
-use my_mmo::sendable_sync::SendableSync;
+use my_mmo::sendable::SendableSync;
 use my_mmo::server::Direction;
 use my_mmo::tcp::{TcpClientMsg, TcpServerMsg};
 use my_mmo::udp::UdpClientMsg;
@@ -191,6 +191,14 @@ async fn draw(
                 }
                 Cc::ReconnectOk => {
                     is_disconnected = false;
+                }
+                Cc::OtherPlayer {
+                    username,
+                    location,
+                    direction,
+                } => {
+                    // TODO: implement direction
+                    other_players.0.insert(username, location);
                 }
             }
         }
@@ -508,12 +516,12 @@ fn handle_end_move_object(
             );
 
             game_objects.0.insert((x, y), obj);
-            let msg = bincode::serialize(&TcpClientMsg::MoveObject {
+            // TODO: Fix bug here
+            let msg = TcpClientMsg::MoveObject {
                 from: moving_obj,
                 to: (x, y),
-            })
-            .unwrap();
-            _ = socket.try_send(&msg);
+            };
+            socket.send_msg_and_log(&msg, None);
         }
     }
 }

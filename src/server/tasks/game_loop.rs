@@ -1,9 +1,11 @@
 use super::Players;
+use crate::GameObjects;
 use crate::constants::*;
+use crate::sendable::SendableAsync;
 use crate::server::{MapElement, MmoMap};
 use crate::udp::*;
-use crate::{GameObjects, OtherPlayer};
 use anyhow::Result;
+use futures::future::join_all;
 use itertools::Itertools;
 use log::{debug, error, trace};
 use std::sync::Arc;
@@ -101,23 +103,24 @@ pub fn game_loop_task(
                     location: player.location,
                     client_request_id: player.client_request_id,
                 };
-                let ser = bincode::serialize(&ps)?;
-                _ = udp_socket.send_to(&ser, player_udp).await;
+                udp_socket.send_msg_and_log_(ps, Some(player_udp)).await;
 
-                let rest = players.values().filter_map(|ps| {
-                    ps.id.ne(&player.id).then(|| OtherPlayer {
-                        username: ps.username.clone(),
-                        location: ps.location,
+                let rest_players_udp_msg_future = players.values().filter_map(|ps| {
+                    (ps.id != player.id).then(|| {
+                        udp_socket.send_msg_and_log_(
+                            UdpServerMsg::OtherPlayer {
+                                username: ps.username.clone(),
+                                location: ps.location,
+                                direction: ps.direction,
+                            },
+                            Some(player_udp),
+                        )
                     })
                 });
-
-                let rest_players = UdpServerMsg::RestOfPlayers(rest.collect());
-                let rest_players_ser = bincode::serialize(&rest_players)?;
-                _ = udp_socket.send_to(&rest_players_ser, player_udp).await;
+                join_all(rest_players_udp_msg_future).await;
 
                 let objects = UdpServerMsg::Objects(game_objects.clone());
-                let encoded_objects = bincode::serialize(&objects)?;
-                _ = udp_socket.send_to(&encoded_objects, player_udp).await;
+                (udp_socket.send_msg_and_log_(objects, Some(player_udp))).await;
             }
         }
     })

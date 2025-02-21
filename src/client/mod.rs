@@ -2,7 +2,7 @@ mod egui;
 mod player;
 pub mod tasks;
 
-use crate::{GameObjects, Location, OtherPlayer};
+use crate::{server::Direction, GameObjects, Location, OtherPlayer};
 pub use egui::*;
 pub use player::*;
 use uuid::Uuid;
@@ -16,6 +16,11 @@ pub enum Cc {
     PlayerMove {
         client_request_id: u32,
         location: Location,
+    },
+    OtherPlayer {
+        username: String,
+        location: Location,
+        direction: Direction,
     },
     RestOfPlayers(Vec<OtherPlayer>),
     Disconnect,
