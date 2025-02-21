@@ -1,8 +1,20 @@
-use serde::{Deserialize, Serialize};
 use crate::{GameObjects, Location, OtherPlayer};
+use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-// Client -> Server
+// SERVER -> CLIENT
+#[derive(Debug, Serialize, Deserialize)]
+pub enum UdpServerMsg {
+    PlayerMove {
+        location: Location,
+        client_request_id: u32,
+    },
+    RestOfPlayers(Vec<OtherPlayer>),
+    Objects(GameObjects),
+    Pong(u32),
+}
+
+// CLIENT -> SERVER
 #[derive(Debug, Serialize, Deserialize)]
 pub enum UdpClientMsg {
     PlayerMove {
@@ -23,16 +35,4 @@ impl UdpClientMsg {
             UdpClientMsg::PlayerMove { id, .. } => *id,
         }
     }
-}
-
-// Server -> Client
-#[derive(Debug, Serialize, Deserialize)]
-pub enum UdpServerMsg {
-    PlayerMove {
-        location: Location,
-        client_request_id: u32,
-    },
-    RestOfPlayers(Vec<OtherPlayer>),
-    Objects(GameObjects),
-    Pong(u32),
 }
