@@ -2,7 +2,7 @@ mod egui;
 mod player;
 pub mod tasks;
 
-use crate::{server::Direction, GameObjects, Location, OtherPlayer};
+use crate::{GameObjects, Location};
 pub use egui::*;
 pub use player::*;
 use uuid::Uuid;
@@ -17,7 +17,7 @@ pub enum Cc {
         client_request_id: u32,
         location: Location,
     },
-    OtherPlayer(OtherPlayer),
+    OtherPlayer(crate::OtherPlayer),
     Disconnect,
     MoveObject {
         from: Location,

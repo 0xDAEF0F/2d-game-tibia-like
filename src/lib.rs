@@ -23,7 +23,7 @@ pub type Location = (u32, u32); // (x, y) coordinates
 pub struct OtherPlayer {
     pub username: String,
     pub location: Location,
-    pub direction: Direction
+    pub direction: Direction,
 }
 
 /// Player initiation state that server instructs

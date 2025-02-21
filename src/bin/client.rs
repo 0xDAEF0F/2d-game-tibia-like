@@ -4,7 +4,7 @@ use log::{debug, error, info};
 use macroquad::{Window, prelude::*};
 use my_mmo::client::tasks::{tcp_reader_task, udp_recv_task};
 use my_mmo::client::{Cc, ChatMessage, ClientChannel};
-use my_mmo::client::{MmoContext, OtherPlayers, Player, make_egui};
+use my_mmo::client::{MmoContext, OtherPlayer, OtherPlayers, Player, make_egui};
 use my_mmo::constants::*;
 use my_mmo::sendable::SendableSync;
 use my_mmo::server::Direction;
@@ -12,6 +12,7 @@ use my_mmo::tcp::{TcpClientMsg, TcpServerMsg};
 use my_mmo::udp::UdpClientMsg;
 use my_mmo::*;
 use std::collections::HashMap;
+use std::collections::hash_map::Entry;
 use std::net::SocketAddr;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
@@ -188,9 +189,19 @@ async fn draw(
                 Cc::ReconnectOk => {
                     is_disconnected = false;
                 }
-                Cc::OtherPlayer(op) => {
-                    other_players.0.insert(op.username.clone(), op);
-                }
+                Cc::OtherPlayer(op) => match other_players.0.entry(op.username.clone()) {
+                    Entry::Occupied(mut entry) => {
+                        let player = entry.get_mut();
+                        if player.location != op.location || player.direction != op.direction {
+                            player.frame = (player.frame + 1) % 3;
+                            player.location = op.location;
+                            player.direction = op.direction;
+                        }
+                    }
+                    Entry::Vacant(entry) => {
+                        entry.insert(OtherPlayer::new(op.username, op.location, op.direction));
+                    }
+                },
             }
         }
 

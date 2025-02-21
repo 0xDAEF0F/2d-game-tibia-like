@@ -1,5 +1,4 @@
 use crate::Location;
-use crate::OtherPlayer;
 use crate::Tilesheet;
 use crate::constants::*;
 use crate::server::Direction;
@@ -20,7 +19,7 @@ pub struct Player {
     pub last_move_timer: f64,
     pub speed: f32,
     pub direction: Direction,
-    pub frame: usize,
+    pub frame: u32,
 }
 
 impl Player {
@@ -111,18 +110,34 @@ impl OtherPlayers {
             let x = x - px + CAMERA_WIDTH as i32 / 2;
             let y = y - py + CAMERA_HEIGHT as i32 / 2;
 
-            render_player(op.direction, (x as u32, y as u32), tilesheet, 0);
+            render_player(op.direction, (x as u32, y as u32), tilesheet, op.frame);
+        }
+    }
+}
+
+/// This represents another player from the perspective of
+/// the client.
+#[derive(Debug)]
+pub struct OtherPlayer {
+    pub username: String,
+    pub location: Location,
+    pub direction: Direction,
+    pub frame: u32,
+}
+
+impl OtherPlayer {
+    pub fn new(username: String, location: Location, direction: Direction) -> Self {
+        Self {
+            username,
+            location,
+            direction,
+            frame: 0,
         }
     }
 }
 
 /// Renders only the game master avatar for the time being.
-pub fn render_player(
-    direction: Direction,
-    location: Location,
-    tilesheet: &Tilesheet,
-    frame: usize,
-) {
+pub fn render_player(direction: Direction, location: Location, tilesheet: &Tilesheet, frame: u32) {
     let tile_to_render = match direction {
         Direction::North => 4 + frame,
         Direction::South => 1 + frame,
