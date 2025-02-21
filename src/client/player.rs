@@ -29,7 +29,7 @@ impl Player {
         let x = (CAMERA_WIDTH / 2) as f32 * TILE_WIDTH;
         let y = (CAMERA_HEIGHT / 2) as f32 * TILE_HEIGHT;
 
-        draw_text(&self.username, x, y - 10.0, 20.0, BLACK);
+        render_entity_name(&self.username, (x, y));
 
         render_player(
             self.direction,
@@ -110,6 +110,7 @@ impl OtherPlayers {
             let x = x - px + CAMERA_WIDTH as i32 / 2;
             let y = y - py + CAMERA_HEIGHT as i32 / 2;
 
+            render_entity_name(&op.username, (x as f32 * TILE_WIDTH, y as f32 * TILE_HEIGHT));
             render_player(op.direction, (x as u32, y as u32), tilesheet, op.frame);
         }
     }
@@ -146,4 +147,11 @@ pub fn render_player(direction: Direction, location: Location, tilesheet: &Tiles
     };
 
     tilesheet.render_tile_at(tile_to_render as u32, location);
+}
+
+pub fn render_entity_name(name: &str, screen_location: (f32, f32)) {
+    let (x, y) = screen_location;
+    let x = x; // center the text
+    let y = y - 10.0; // move the text slightly above the entity 
+    draw_text(name, x, y, 20.0 /* font size */, BLACK);
 }

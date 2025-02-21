@@ -10,9 +10,9 @@
 
 ## Improvements/Refactorings
 
-- [ ] Display other users' names above their heads.
 - [ ] Only be able to move objects if you are adjacent to them.
 - [ ] Must decouple `game_objects` from the server.
+- [x] Display other users' names above their heads.
 - [x] Other players must turn direction adequately.
 - [x] Implement traits to deserialize/serialize and send through UDP/TCP.
 

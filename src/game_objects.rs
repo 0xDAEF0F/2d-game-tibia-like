@@ -63,7 +63,7 @@ impl GameObjects {
         let mut object = self.0.remove(&from)?;
         if object.is_monster() {
             let direction = calculate_new_direction(from, to);
-            log::debug!("changing direction of monster to: {:?}", direction);
+            log::trace!("changing direction of monster to: {:?}", direction);
             object.change_direction(direction);
         }
         self.0.insert(to, object);

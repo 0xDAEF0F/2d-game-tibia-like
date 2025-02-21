@@ -3,7 +3,7 @@ use egui_macroquad::macroquad;
 use log::{debug, error, info};
 use macroquad::{Window, prelude::*};
 use my_mmo::client::tasks::{tcp_reader_task, udp_recv_task};
-use my_mmo::client::{Cc, ChatMessage, ClientChannel};
+use my_mmo::client::{render_entity_name, Cc, ChatMessage, ClientChannel};
 use my_mmo::client::{MmoContext, OtherPlayer, OtherPlayers, Player, make_egui};
 use my_mmo::constants::*;
 use my_mmo::sendable::SendableSync;
@@ -399,6 +399,8 @@ fn render_objects(player: &Player, tilesheets: &[&Tilesheet], game_objects: &Gam
 
             if let GameObject::Orc { hp, direction, .. } = game_object {
                 log::trace!("Orc direction is: {direction:?}",);
+
+                render_entity_name("Orc", (j as f32 * TILE_WIDTH, i as f32 * TILE_HEIGHT));
 
                 let healthbar_pct: f32 = *hp as f32 / ORC_MAX_HP as f32;
 
