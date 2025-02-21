@@ -6,6 +6,7 @@ use my_mmo::client::tasks::{tcp_reader_task, udp_recv_task};
 use my_mmo::client::{Cc, ChatMessage, ClientChannel};
 use my_mmo::client::{MmoContext, OtherPlayers, Player, make_egui};
 use my_mmo::constants::*;
+use my_mmo::sendable_sync::SendableSync;
 use my_mmo::server::Direction;
 use my_mmo::tcp::{TcpClientMsg, TcpServerMsg};
 use my_mmo::udp::UdpClientMsg;
@@ -245,11 +246,7 @@ fn send_pos_to_server(player: &mut Player, socket: &UdpSocket) {
         },
         location: player.curr_location,
     };
-    let ser = bincode::serialize(&msg).unwrap();
-
-    if let Err(e) = socket.try_send(&ser) {
-        error!("failed to send UDP message to server: {e}");
-    };
+    socket.send_msg_and_log(&msg, None);
 }
 
 fn handle_player_movement(player: &mut Player, op: &OtherPlayers) {
