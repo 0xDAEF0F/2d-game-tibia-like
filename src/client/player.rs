@@ -1,4 +1,5 @@
 use crate::Location;
+use crate::OtherPlayer;
 use crate::Tilesheet;
 use crate::constants::*;
 use crate::server::Direction;
@@ -82,7 +83,8 @@ impl Player {
             return false;
         }
 
-        for &(px, py) in op.0.values() {
+        for op in op.0.values() {
+            let (px, py) = op.location;
             if (px, py) == (x as u32, y as u32) {
                 return false;
             }
@@ -92,12 +94,12 @@ impl Player {
     }
 }
 
-pub struct OtherPlayers(pub HashMap<String, Location>);
+pub struct OtherPlayers(pub HashMap<String, OtherPlayer>);
 
 impl OtherPlayers {
     pub fn render(&self, player: &Player, tilesheet: &Tilesheet) {
-        for &(x, y) in self.0.values() {
-            let (x, y) = (x as i32, y as i32);
+        for op in self.0.values() {
+            let (x, y) = (op.location.0 as i32, op.location.1 as i32);
             let (px, py) = (player.curr_location.0 as i32, player.curr_location.1 as i32);
 
             let relative_offset_x = (CAMERA_WIDTH / 2) as i32;
@@ -116,8 +118,7 @@ impl OtherPlayers {
             let x = x - px + CAMERA_WIDTH as i32 / 2;
             let y = y - py + CAMERA_HEIGHT as i32 / 2;
 
-            // TODO: need the direction of the other player.
-            render_player(player.direction, (x as u32, y as u32), tilesheet);
+            render_player(op.direction, (x as u32, y as u32), tilesheet);
         }
     }
 }

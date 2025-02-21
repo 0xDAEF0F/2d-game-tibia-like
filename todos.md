@@ -10,6 +10,7 @@
 ## Improvements/Refactorings
 
 - [ ] Must decouple `game_objects` from the server.
+- [x] Other players must turn direction adequately.
 - [x] Implement traits to deserialize/serialize and send through UDP/TCP.
 
 ## Bugs

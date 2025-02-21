@@ -178,11 +178,6 @@ async fn draw(
                     mmo_context.user_chat.push(ChatMessage::new(from, msg));
                 }
                 Cc::Pong(ping_id) => ping_monitor.log_ping(&ping_id),
-                Cc::RestOfPlayers(op) => {
-                    let iter = op.into_iter().map(|p| (p.username, p.location));
-                    other_players.0.clear();
-                    other_players.0.extend(iter);
-                }
                 Cc::Objects(game_obj) => {
                     game_objects = game_obj;
                 }
@@ -192,13 +187,8 @@ async fn draw(
                 Cc::ReconnectOk => {
                     is_disconnected = false;
                 }
-                Cc::OtherPlayer {
-                    username,
-                    location,
-                    direction,
-                } => {
-                    // TODO: implement direction
-                    other_players.0.insert(username, location);
+                Cc::OtherPlayer(op) => {
+                    other_players.0.insert(op.username.clone(), op);
                 }
             }
         }

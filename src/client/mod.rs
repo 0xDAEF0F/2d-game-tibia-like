@@ -17,12 +17,7 @@ pub enum Cc {
         client_request_id: u32,
         location: Location,
     },
-    OtherPlayer {
-        username: String,
-        location: Location,
-        direction: Direction,
-    },
-    RestOfPlayers(Vec<OtherPlayer>),
+    OtherPlayer(OtherPlayer),
     Disconnect,
     MoveObject {
         from: Location,

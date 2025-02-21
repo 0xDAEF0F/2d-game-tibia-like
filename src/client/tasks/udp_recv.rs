@@ -1,3 +1,4 @@
+use crate::OtherPlayer;
 use crate::client::{Cc, ClientChannel};
 use crate::udp::UdpServerMsg;
 use anyhow::Result;
@@ -43,11 +44,11 @@ pub fn udp_recv_task(
                     } => {
                         let cc = ClientChannel {
                             id: user_id,
-                            msg: Cc::OtherPlayer {
+                            msg: Cc::OtherPlayer(OtherPlayer {
                                 username,
                                 location,
                                 direction,
-                            },
+                            }),
                         };
                         cc_tx.send(cc)?;
                     }
