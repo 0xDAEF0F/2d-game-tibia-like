@@ -10,8 +10,10 @@
 
 ## Improvements/Refactorings
 
-- [ ] Only be able to move objects if you are adjacent to them.
+- [ ] Change the cursor to a hand that shows the user is moving something when dragging.
 - [ ] Must decouple `game_objects` from the server.
+- [ ] We need to verify server side if the player moved the object and was adjacent to it.
+- [x] Only be able to move objects if you are adjacent to them.
 - [x] Display other users' names above their heads.
 - [x] Other players must turn direction adequately.
 - [x] Implement traits to deserialize/serialize and send through UDP/TCP.

@@ -3,7 +3,7 @@ use egui_macroquad::macroquad;
 use log::{debug, error, info};
 use macroquad::{Window, prelude::*};
 use my_mmo::client::tasks::{tcp_reader_task, udp_recv_task};
-use my_mmo::client::{render_entity_name, Cc, ChatMessage, ClientChannel};
+use my_mmo::client::{Cc, ChatMessage, ClientChannel, render_entity_name};
 use my_mmo::client::{MmoContext, OtherPlayer, OtherPlayers, Player, make_egui};
 use my_mmo::constants::*;
 use my_mmo::sendable::SendableSync;
@@ -481,6 +481,15 @@ fn handle_start_move_object(
     let (x, y) = (abs_x as u32, abs_y as u32);
 
     if !game_objects.0.contains_key(&(x, y)) {
+        return;
+    }
+
+    // check if the object is adjacent to the player
+    let (obj_x, obj_y) = (x as i32, y as i32);
+    let (player_x, player_y) = (player.curr_location.0 as i32, player.curr_location.1 as i32);
+
+    let is_adjacent = (obj_x - player_x).abs() <= 1 && (obj_y - player_y).abs() <= 1;
+    if !is_adjacent {
         return;
     }
 
