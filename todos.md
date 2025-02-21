@@ -4,7 +4,7 @@
 
 - [ ] Animate movement of player/objects between their sprites.
 - [ ] Implement simple combat system.
-- [ ] Other players must be rendered with an avatar in the client.
+- [x] Other players must be rendered with an avatar in the client.
 - [x] Monster(s) must change directions when walking.
 
 ## Improvements/Refactorings
@@ -17,3 +17,4 @@
 
 - [ ] Monster pathfinding does not work properly when player moves.
 - [ ] Monster must not retarget players like crazy.
+- [ ] Fix diagonal movements for players/monsters.

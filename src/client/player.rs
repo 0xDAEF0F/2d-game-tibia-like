@@ -20,6 +20,7 @@ pub struct Player {
     pub last_move_timer: f64,
     pub speed: f32,
     pub direction: Direction,
+    pub frame: usize,
 }
 
 impl Player {
@@ -31,19 +32,11 @@ impl Player {
 
         draw_text(&self.username, x, y - 10.0, 20.0, BLACK);
 
-        // let tile_to_render = match self.direction {
-        //     Direction::North => 4,
-        //     Direction::South => 1,
-        //     Direction::West => 10,
-        //     Direction::East => 7,
-        // };
-
-        // tilesheet.render_tile_at(tile_to_render, (CAMERA_WIDTH / 2, CAMERA_HEIGHT / 2));
-
         render_player(
             self.direction,
             (CAMERA_WIDTH / 2, CAMERA_HEIGHT / 2),
             tilesheet,
+            self.frame,
         );
     }
 
@@ -118,21 +111,24 @@ impl OtherPlayers {
             let x = x - px + CAMERA_WIDTH as i32 / 2;
             let y = y - py + CAMERA_HEIGHT as i32 / 2;
 
-            render_player(op.direction, (x as u32, y as u32), tilesheet);
+            render_player(op.direction, (x as u32, y as u32), tilesheet, 0);
         }
     }
 }
 
 /// Renders only the game master avatar for the time being.
-pub fn render_player(direction: Direction, location: Location, tilesheet: &Tilesheet) {
-    // assert_eq!(tilesheet.name(), "chars", "Wrong `Tilesheet`");
-
+pub fn render_player(
+    direction: Direction,
+    location: Location,
+    tilesheet: &Tilesheet,
+    frame: usize,
+) {
     let tile_to_render = match direction {
-        Direction::North => 4,
-        Direction::South => 1,
-        Direction::West => 10,
-        Direction::East => 7,
+        Direction::North => 4 + frame,
+        Direction::South => 1 + frame,
+        Direction::West => 10 + frame,
+        Direction::East => 7 + frame,
     };
 
-    tilesheet.render_tile_at(tile_to_render, location);
+    tilesheet.render_tile_at(tile_to_render as u32, location);
 }

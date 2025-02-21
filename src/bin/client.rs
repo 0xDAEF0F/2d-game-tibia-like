@@ -22,7 +22,7 @@ use tokio::sync::mpsc::{self, UnboundedReceiver, UnboundedSender};
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    MmoLogger::init("trace");
+    MmoLogger::init("debug");
 
     let socket = UdpSocket::bind("0.0.0.0:0").await?;
     let socket = Arc::new(socket);
@@ -64,6 +64,7 @@ async fn main() -> Result<()> {
         level: init_player.level,
         hp: init_player.hp,
         max_hp: init_player.max_hp,
+        frame: 0,
         request_id: 0,
         speed: BASE_MOVE_DELAY,
         curr_location: init_player.location,
@@ -336,6 +337,7 @@ fn move_player(player: &mut Player, direction: (isize, isize), current_time: f64
     };
 
     player.direction = direction;
+    player.frame = (player.frame + 1) % 3; // Cycle through frames 0, 1, 2
 }
 
 /// Renders the camera around the player
