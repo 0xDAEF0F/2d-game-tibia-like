@@ -1,7 +1,5 @@
-use crate::{
-    UdpServerMsg,
-    client::{Cc, ClientChannel},
-};
+use crate::client::{Cc, ClientChannel};
+use crate::udp::UdpServerMsg;
 use anyhow::Result;
 use std::sync::Arc;
 use tokio::{net::UdpSocket, sync::mpsc::UnboundedSender, task::JoinHandle};

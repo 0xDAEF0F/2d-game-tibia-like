@@ -1,7 +1,5 @@
-use crate::{
-    UdpClientMsg,
-    server::{Player, Sc, ServerChannel},
-};
+use crate::server::{Player, Sc, ServerChannel};
+use crate::udp::UdpClientMsg;
 use anyhow::Result;
 use log::{debug, error};
 use std::{collections::HashMap, net::SocketAddr, sync::Arc};

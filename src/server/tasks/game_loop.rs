@@ -1,7 +1,8 @@
 use super::Players;
 use crate::constants::*;
 use crate::server::{MapElement, MmoMap};
-use crate::{GameObjects, OtherPlayer, UdpServerMsg};
+use crate::udp::*;
+use crate::{GameObjects, OtherPlayer};
 use anyhow::Result;
 use itertools::Itertools;
 use log::{debug, error, trace};

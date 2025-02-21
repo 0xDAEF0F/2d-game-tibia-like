@@ -1,5 +1,5 @@
 use super::{ChatMessage, MmoContext};
-use crate::TcpClientMsg;
+use crate::tcp::TcpClientMsg;
 use egui_macroquad::egui::{self, Key, Modifiers, Pos2};
 use egui_macroquad::macroquad::prelude::*;
 

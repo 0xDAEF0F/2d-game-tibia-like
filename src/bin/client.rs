@@ -7,6 +7,8 @@ use my_mmo::client::{Cc, ChatMessage, ClientChannel};
 use my_mmo::client::{MmoContext, OtherPlayers, Player, make_egui};
 use my_mmo::constants::*;
 use my_mmo::server::Direction;
+use my_mmo::tcp::{TcpClientMsg, TcpServerMsg};
+use my_mmo::udp::UdpClientMsg;
 use my_mmo::*;
 use std::collections::HashMap;
 use std::net::SocketAddr;
