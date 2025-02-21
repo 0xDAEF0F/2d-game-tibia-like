@@ -350,10 +350,6 @@ fn render_view(player: &Player, map: &Map, tilesheet: &Tilesheet) {
             let x = player.curr_location.0 as i32 - CAMERA_WIDTH as i32 / 2 + j as i32;
             let y = player.curr_location.1 as i32 - CAMERA_HEIGHT as i32 / 2 + i as i32;
 
-            // if (x as u32, y as u32) == player.curr_location {
-            //     debug!("{x},{y}",);
-            // }
-
             let tile_id = map
                 .get_layer(0)
                 .and_then(|l| l.as_tile_layer())
