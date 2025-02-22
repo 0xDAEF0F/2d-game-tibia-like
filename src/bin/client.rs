@@ -11,8 +11,8 @@ use my_mmo::server::Direction;
 use my_mmo::tcp::{TcpClientMsg, TcpServerMsg};
 use my_mmo::udp::UdpClientMsg;
 use my_mmo::*;
-use std::collections::HashMap;
 use std::collections::hash_map::Entry;
+use std::collections::{HashMap, VecDeque};
 use std::net::SocketAddr;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
@@ -70,6 +70,7 @@ async fn main() -> Result<()> {
         speed: BASE_MOVE_DELAY,
         curr_location: init_player.location,
         prev_location: init_player.location,
+        route: VecDeque::new(),
         last_move_timer: 0.0,
         direction: init_player.direction,
     };
@@ -217,17 +218,9 @@ async fn draw(
             &game_objects,
         );
 
-        // Handle movement
-        fn check_if_player_clicked_on_a_part_of_the_map(player: &Player) {
-            if let Some((x, y)) = is_mouse_button_down(MouseButton::Left)
-                .then(|| get_mouse_map_tile_position(player.curr_location))
-                .flatten()
-            {
-                debug!("player clicked on: {:?}", (x, y));
-            };
-        }
+        program_route_if_user_clicks_map(&mut player, &game_objects, &other_players);
 
-        check_if_player_clicked_on_a_part_of_the_map(&player);
+        handle_route(&mut player, &game_objects, &other_players);
 
         handle_player_movement(&mut player, &other_players);
 
@@ -612,4 +605,128 @@ async fn request_new_session_from_server(tcp_stream: &mut TcpStream) -> Result<I
 
         return Ok(init_player);
     }
+}
+
+type QuickMap = [[bool; MAP_WIDTH as usize]; MAP_HEIGHT as usize];
+fn construct_map_from_unwalkable_objects(
+    game_objects: &GameObjects,
+    other_players: &OtherPlayers,
+) -> QuickMap {
+    let mut map = [[true; MAP_WIDTH as usize]; MAP_HEIGHT as usize];
+    for (location, game_object) in game_objects.0.iter() {
+        if let GameObject::Orc { .. } = game_object {
+            map[location.1 as usize][location.0 as usize] = false;
+        }
+    }
+    for player in other_players.0.values() {
+        map[player.location.1 as usize][player.location.0 as usize] = false;
+    }
+    map
+}
+
+fn bfs_find_path(map: &QuickMap, start: Location, end: Location) -> Vec<Location> {
+    use std::collections::{HashSet, VecDeque};
+
+    let mut queue = VecDeque::new();
+    let mut visited = HashSet::new();
+    let mut came_from: HashMap<Location, Location> = HashMap::new();
+
+    queue.push_back(start);
+    visited.insert(start);
+
+    while let Some(current) = queue.pop_front() {
+        if current == end {
+            // Reconstruct path
+            let mut path = vec![current];
+            let mut pos = current;
+            while pos != start {
+                pos = came_from[&pos];
+                path.push(pos);
+            }
+            path.reverse();
+            // Remove start location from path
+            path.remove(0);
+            return path;
+        }
+
+        // Check all adjacent tiles
+        let possible_moves = [
+            (current.0.wrapping_sub(1), current.1), // Left
+            (current.0.wrapping_add(1), current.1), // Right
+            (current.0, current.1.wrapping_sub(1)), // Up
+            (current.0, current.1.wrapping_add(1)), // Down
+        ];
+
+        for next in possible_moves {
+            // Check if position is within bounds
+            if next.0 >= MAP_WIDTH as u32 || next.1 >= MAP_HEIGHT as u32 {
+                continue;
+            }
+
+            // Check if position is walkable and not visited
+            if map[next.1 as usize][next.0 as usize] && !visited.contains(&next) {
+                queue.push_back(next);
+                visited.insert(next);
+                came_from.insert(next, current);
+            }
+        }
+    }
+
+    vec![]
+}
+
+// Handle movement
+fn program_route_if_user_clicks_map(
+    player: &mut Player,
+    game_objects: &GameObjects,
+    other_players: &OtherPlayers,
+) {
+    if !is_mouse_button_pressed(MouseButton::Left) {
+        return;
+    }
+
+    let Some((x, y)) = get_mouse_map_tile_position(player.curr_location) else {
+        return;
+    };
+
+    let map = construct_map_from_unwalkable_objects(game_objects, other_players);
+    let path = bfs_find_path(&map, player.curr_location, (x, y));
+
+    log::info!("path: {:?}", path);
+
+    if path.is_empty() {
+        return;
+    }
+
+    player.route = VecDeque::from(path);
+}
+
+fn handle_route(player: &mut Player, game_objects: &GameObjects, other_players: &OtherPlayers) {
+    if player.route.is_empty() {
+        return;
+    }
+
+    let current_time = get_time();
+    let can_move = current_time - player.last_move_timer >= player.speed.into();
+
+    if !can_move {
+        return;
+    }
+
+    let next_location = player.route.front().unwrap();
+
+    let key = match (
+        next_location.0 as isize - player.curr_location.0 as isize,
+        next_location.1 as isize - player.curr_location.1 as isize,
+    ) {
+        (0, -1) => KeyCode::Up,
+        (0, 1) => KeyCode::Down,
+        (1, 0) => KeyCode::Right,
+        (-1, 0) => KeyCode::Left,
+        _ => return,
+    };
+
+    handle_single_key_movement(player, other_players, key, get_time());
+
+    player.route.pop_front();
 }

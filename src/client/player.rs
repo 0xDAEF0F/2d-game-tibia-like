@@ -3,7 +3,7 @@ use crate::Tilesheet;
 use crate::constants::*;
 use crate::server::Direction;
 use egui_macroquad::macroquad::prelude::*;
-use std::collections::HashMap;
+use std::collections::{HashMap, VecDeque};
 use uuid::Uuid;
 
 #[derive(Debug)]
@@ -16,6 +16,7 @@ pub struct Player {
     pub max_hp: u32,
     pub curr_location: Location,
     pub prev_location: Location,
+    pub route: VecDeque<Location>,
     pub last_move_timer: f64,
     pub speed: f32,
     pub direction: Direction,
