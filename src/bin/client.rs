@@ -218,6 +218,17 @@ async fn draw(
         );
 
         // Handle movement
+        fn check_if_player_clicked_on_a_part_of_the_map(player: &Player) {
+            if let Some((x, y)) = is_mouse_button_down(MouseButton::Left)
+                .then(|| get_mouse_map_tile_position(player.curr_location))
+                .flatten()
+            {
+                debug!("player clicked on: {:?}", (x, y));
+            };
+        }
+
+        check_if_player_clicked_on_a_part_of_the_map(&player);
+
         handle_player_movement(&mut player, &other_players);
 
         // Object movements

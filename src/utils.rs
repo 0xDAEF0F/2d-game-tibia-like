@@ -1,5 +1,5 @@
-use crate::constants::*;
 use crate::tcp::TcpClientMsg;
+use crate::{Location, constants::*};
 use egui_macroquad::macroquad::prelude::*;
 use log::trace;
 use std::sync::Mutex;
@@ -90,4 +90,39 @@ impl PingMonitor {
             trace!("ping for req {} = {}ms", ping_id, latency);
         }
     }
+}
+
+/// It only returns the mouse position if it is within
+/// the macroquad window, else returns `None`. These
+/// represent the (x, y) coordinates on the screen.
+pub fn get_mouse_position_in_macroquad() -> Option<(f32, f32)> {
+    match mouse_position() {
+        (x, y) if x >= 0. && y >= 0. => Some((x, y)),
+        _ => None,
+    }
+}
+
+/// If it is outside the camera it will return `None`
+pub fn get_mouse_camera_tile_position() -> Option<(u32, u32)> {
+    get_mouse_position_in_macroquad().and_then(|(x, y)| {
+        let (x, y) = (x / TILE_WIDTH, y / TILE_WIDTH); // `TILE_HEIGHT` == `TILE_WIDTH`
+        let (x, y) = (x as u32, y as u32);
+        match (x, y) {
+            (x, y) if x < CAMERA_WIDTH && y < CAMERA_HEIGHT => Some((x, y)),
+            _ => None,
+        }
+    })
+}
+
+pub fn get_mouse_map_tile_position(player_location: Location) -> Option<(u32, u32)> {
+    let (px, py) = (player_location.0 as i32, player_location.1 as i32);
+    get_mouse_camera_tile_position().and_then(|(x, y)| {
+        let origin_x = px - (CAMERA_WIDTH as i32 / 2);
+        let origin_y = py - (CAMERA_HEIGHT as i32 / 2);
+        match (origin_x + x as i32, origin_y + y as i32) {
+            (x, y) if x.is_negative() || y.is_negative() => None,
+            (x, y) if x >= MAP_WIDTH.try_into().ok()? || y >= MAP_HEIGHT.try_into().ok()? => None,
+            (x, y) => Some((x as u32, y as u32)),
+        }
+    })
 }
