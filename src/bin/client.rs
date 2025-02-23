@@ -128,11 +128,7 @@ async fn draw(
         loader.load_tmx_map("assets/basic-map.tmx").unwrap()
     };
 
-    // TODO: refactor
-    let tilesheet = Tilesheet::from_tileset(map.tilesets()[0].clone());
-    let objects_tilesheet_a = Tilesheet::from_tileset(map.tilesets()[1].clone());
-    let objects_tilesheet_b = Tilesheet::from_tileset(map.tilesets()[2].clone());
-    let player_tilesheet = Tilesheet::from_tileset(map.tilesets()[3].clone());
+    let tilesheets = MmoTilesheets::new(&map);
 
     let mut game_objects = GameObjects::new();
     let mut moving_object: Option<Location> = None;
@@ -206,17 +202,14 @@ async fn draw(
             }
         }
 
-        // Render players
-        render_view(&player, &map, &tilesheet);
-        player.render(&player_tilesheet);
-        player.render_health_bar();
-        other_players.render(&player, &player_tilesheet);
+        render_view(&player, &map, &tilesheets);
 
-        render_objects(
-            &player,
-            &[&objects_tilesheet_a, &objects_tilesheet_b],
-            &game_objects,
-        );
+        // Render players
+        player.render(&tilesheets);
+        player.render_health_bar();
+        other_players.render(&player, &tilesheets);
+
+        render_objects(&player, &tilesheets, &game_objects);
 
         program_route_if_user_clicks_map(&mut player, &game_objects, &other_players);
 
@@ -360,7 +353,7 @@ fn move_player(player: &mut Player, direction: (isize, isize), current_time: f64
 }
 
 /// Renders the camera around the player
-fn render_view(player: &Player, map: &Map, tilesheet: &Tilesheet) {
+fn render_view(player: &Player, map: &Map, tilesheets: &MmoTilesheets) {
     for i in 0..CAMERA_HEIGHT {
         for j in 0..CAMERA_WIDTH {
             let x = player.curr_location.0 as i32 - CAMERA_WIDTH as i32 / 2 + j as i32;
@@ -373,7 +366,7 @@ fn render_view(player: &Player, map: &Map, tilesheet: &Tilesheet) {
                 .and_then(|t| t.id().into());
 
             if let Some(t_id) = tile_id {
-                tilesheet.render_tile_at(t_id, (j, i));
+                tilesheets.render_tile_at("grass-tileset", t_id, (j, i));
             } else {
                 draw_rectangle(
                     j as f32 * TILE_HEIGHT,
@@ -387,7 +380,7 @@ fn render_view(player: &Player, map: &Map, tilesheet: &Tilesheet) {
     }
 }
 
-fn render_objects(player: &Player, tilesheets: &[&Tilesheet], game_objects: &GameObjects) {
+fn render_objects(player: &Player, tilesheets: &MmoTilesheets, game_objects: &GameObjects) {
     for i in 0..CAMERA_HEIGHT {
         for j in 0..CAMERA_WIDTH {
             let x = player.curr_location.0 as i32 - CAMERA_WIDTH as i32 / 2 + j as i32;
@@ -440,17 +433,12 @@ fn render_objects(player: &Player, tilesheets: &[&Tilesheet], game_objects: &Gam
                     Direction::East => 69,
                     Direction::West => 72,
                 };
-                let tilesheet_number = game_object.tileset_location() - 1;
 
-                tilesheets[tilesheet_number].render_tile_at(tile_id, (j, i));
-
+                tilesheets.render_tile_at("tibia-sprites", tile_id, (j, i));
                 continue;
             }
 
-            let tile_id = game_object.id();
-            let tilesheet_number = game_object.tileset_location() - 1;
-
-            tilesheets[tilesheet_number].render_tile_at(tile_id, (j, i));
+            tilesheets.render_tile_at("props-tileset", game_object.id(), (j, i));
         }
     }
 }

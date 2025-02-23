@@ -3,7 +3,8 @@
 ## Features
 
 - [ ] Implement simple combat system.
-- [ ] When user clicks a part of the map it should go walk towards it.
+- [ ] Implement a system to navigate to different levels in the map (z index).
+- [x] When user clicks a part of the map it should go walk towards it.
 - [x] Never spawn a player in the same spot as somebody else.
 - [x] Animate movement of player/objects between their sprites.
 - [x] Other players must be rendered with an avatar in the client.
@@ -14,6 +15,7 @@
 - [ ] Change the cursor to a hand that shows the user is moving something when dragging.
 - [ ] Must decouple `game_objects` from the server.
 - [ ] We need to verify server side if the player moved the object and was adjacent to it.
+- [ ] Verify movements of players in the server so user can't cheat and teleport.
 - [x] Only be able to move objects if you are adjacent to them.
 - [x] Display other users' names above their heads.
 - [x] Other players must turn direction adequately.

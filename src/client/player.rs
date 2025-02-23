@@ -1,4 +1,5 @@
 use crate::Location;
+use crate::MmoTilesheets;
 use crate::Tilesheet;
 use crate::constants::*;
 use crate::server::Direction;
@@ -90,7 +91,7 @@ impl Player {
 pub struct OtherPlayers(pub HashMap<String, OtherPlayer>);
 
 impl OtherPlayers {
-    pub fn render(&self, player: &Player, tilesheet: &Tilesheet) {
+    pub fn render(&self, player: &Player, tilesheets: &MmoTilesheets) {
         for op in self.0.values() {
             let (x, y) = (op.location.0 as i32, op.location.1 as i32);
             let (px, py) = (player.curr_location.0 as i32, player.curr_location.1 as i32);
@@ -115,7 +116,7 @@ impl OtherPlayers {
                 &op.username,
                 (x as f32 * TILE_WIDTH, y as f32 * TILE_HEIGHT),
             );
-            render_player(op.direction, (x as u32, y as u32), tilesheet, op.frame);
+            render_player(op.direction, (x as u32, y as u32), tilesheets, op.frame);
         }
     }
 }
@@ -142,7 +143,12 @@ impl OtherPlayer {
 }
 
 /// Renders only the game master avatar for the time being.
-pub fn render_player(direction: Direction, location: Location, tilesheet: &Tilesheet, frame: u32) {
+pub fn render_player(
+    direction: Direction,
+    location: Location,
+    tilesheet: &MmoTilesheets,
+    frame: u32,
+) {
     let tile_to_render = match direction {
         Direction::North => 4 + frame,
         Direction::South => 1 + frame,
@@ -150,7 +156,7 @@ pub fn render_player(direction: Direction, location: Location, tilesheet: &Tiles
         Direction::East => 7 + frame,
     };
 
-    tilesheet.render_tile_at(tile_to_render as u32, location);
+    tilesheet.render_tile_at("chars", tile_to_render, location);
 }
 
 pub fn render_entity_name(name: &str, screen_location: (f32, f32)) {

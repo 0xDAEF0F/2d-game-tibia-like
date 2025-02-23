@@ -120,3 +120,20 @@ impl GameObject {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_load_map() {
+        let map = {
+            let mut loader = Loader::new();
+            loader.load_tmx_map("assets/basic-map.tmx").unwrap()
+        };
+
+        let layer = map.get_layer(0).unwrap();
+
+        assert_eq!(layer.name, "Tile Layer 1");
+    }
+}
