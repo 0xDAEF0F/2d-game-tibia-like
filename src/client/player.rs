@@ -1,6 +1,5 @@
 use crate::Location;
 use crate::MmoTilesheets;
-use crate::Tilesheet;
 use crate::constants::*;
 use crate::server::Direction;
 use egui_macroquad::macroquad::prelude::*;
@@ -26,23 +25,24 @@ pub struct Player {
 
 impl Player {
     /// Renders the player in the middle of the viewport.
-    pub fn render(&self, tilesheet: &Tilesheet) {
-        // Note: this is in screen coordinates.
+    pub fn render(&self, tilesheets: &MmoTilesheets) {
         let x = (CAMERA_WIDTH / 2) as f32 * TILE_WIDTH;
         let y = (CAMERA_HEIGHT / 2) as f32 * TILE_HEIGHT;
+
+        self.render_health_bar();
 
         render_entity_name(&self.username, (x, y));
 
         render_player(
             self.direction,
             (CAMERA_WIDTH / 2, CAMERA_HEIGHT / 2),
-            tilesheet,
+            tilesheets,
             self.frame,
         );
     }
 
     /// Renders the player's health bar above the player.
-    pub fn render_health_bar(&self) {
+    fn render_health_bar(&self) {
         let healthbar_pct: f32 = self.hp as f32 / self.max_hp as f32;
 
         let bar_width = 32.0;

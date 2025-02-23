@@ -204,9 +204,8 @@ async fn draw(
 
         render_view(&player, &map, &tilesheets);
 
-        // Render players
         player.render(&tilesheets);
-        player.render_health_bar();
+
         other_players.render(&player, &tilesheets);
 
         render_objects(&player, &tilesheets, &game_objects);
