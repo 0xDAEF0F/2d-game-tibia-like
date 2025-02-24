@@ -33,13 +33,12 @@ pub enum Sc {
     Ping(u32),       // ping_id
 }
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct MmoMap([[MapElement; MAP_WIDTH as usize]; MAP_HEIGHT as usize]);
 
 impl MmoMap {
     pub fn new() -> MmoMap {
-        let map = MmoMap([[MapElement::Empty; MAP_WIDTH as usize]; MAP_HEIGHT as usize]);
-        map
+        MmoMap([[MapElement::Empty; MAP_WIDTH as usize]; MAP_HEIGHT as usize])
     }
 
     pub fn from_game_objects(game_objects: GameObjects) -> MmoMap {
@@ -145,8 +144,9 @@ impl IndexMut<Location> for MmoMap {
     }
 }
 
-#[derive(Debug, Copy, Clone, PartialEq)]
+#[derive(Debug, Copy, Clone, PartialEq, Default)]
 pub enum MapElement {
+    #[default]
     Empty,
     Monster(Monster), // last movement
     Player(Uuid),     // player id

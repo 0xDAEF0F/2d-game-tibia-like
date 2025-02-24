@@ -161,7 +161,6 @@ pub fn render_player(
 
 pub fn render_entity_name(name: &str, screen_location: (f32, f32)) {
     let (x, y) = screen_location;
-    let x = x; // center the text
     let y = y - 10.0; // move the text slightly above the entity 
     draw_text(name, x, y, 20.0 /* font size */, BLACK);
 }

@@ -15,6 +15,7 @@ pub use tilesheet::*;
 pub use utils::*;
 
 use serde::{Deserialize, Serialize};
+use std::cmp::Ordering;
 use uuid::Uuid;
 
 pub type Location = (u32, u32); // (x, y) coordinates
@@ -43,17 +44,13 @@ pub fn calculate_new_direction(prev: Location, target: Location) -> Direction {
     let (px, py) = prev;
     let (tx, ty) = target;
 
-    if px == tx {
-        if py < ty {
-            Direction::South
-        } else {
-            Direction::North
-        }
-    } else {
-        if px < tx {
-            Direction::East
-        } else {
-            Direction::West
-        }
+    // NOTE: there may be a bug here
+    match px.cmp(&tx) {
+        Ordering::Equal => match py.cmp(&ty) {
+            Ordering::Less => Direction::South,
+            _ => Direction::North,
+        },
+        Ordering::Less => Direction::East,
+        Ordering::Greater => Direction::West,
     }
 }

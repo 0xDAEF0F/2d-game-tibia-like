@@ -7,6 +7,7 @@ use tiled::Loader;
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
 pub struct GameObjects(pub HashMap<Location, GameObject>);
 
+#[allow(clippy::new_without_default)]
 impl GameObjects {
     pub fn new() -> GameObjects {
         let map = {
@@ -96,16 +97,12 @@ impl GameObject {
     }
 
     pub fn is_monster(&self) -> bool {
-        match self {
-            GameObject::Orc { .. } => true,
-            _ => false,
-        }
+        matches!(self, GameObject::Orc { .. })
     }
 
     pub fn change_direction(&mut self, direction: Direction) {
-        match self {
-            GameObject::Orc { direction: d, .. } => *d = direction,
-            _ => (),
+        if let GameObject::Orc { direction: d, .. } = self {
+            *d = direction
         }
     }
 

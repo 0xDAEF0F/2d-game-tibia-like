@@ -29,20 +29,18 @@ pub fn create_chat_window(mmo_context: &mut MmoContext, egui_ctx: &egui::Context
                 .hint_text("type text here")
                 .show(ui);
 
-            if ui.input_mut(|i| i.consume_key(Modifiers::NONE, Key::Enter)) {
-                if !text.is_empty() {
-                    let msg = TcpClientMsg::ChatMsg(text.clone());
-                    let serialized = bincode::serialize(&msg).unwrap();
-                    if let Ok(size) = tcp_writer.lock().unwrap().try_write(&serialized) {
-                        info!("sent {} bytes", size);
-                        info!("sent chat message: {}", text);
-                    } else {
-                        error!("could not send chat message: {}", text);
-                    }
-                    chat.push(ChatMessage::new(mmo_context.username.clone(), text.clone()));
-                    text.clear();
-                    text_edit_output.response.request_focus();
+            if ui.input_mut(|i| i.consume_key(Modifiers::NONE, Key::Enter)) && !text.is_empty() {
+                let msg = TcpClientMsg::ChatMsg(text.clone());
+                let serialized = bincode::serialize(&msg).unwrap();
+                if let Ok(size) = tcp_writer.lock().unwrap().try_write(&serialized) {
+                    info!("sent {} bytes", size);
+                    info!("sent chat message: {}", text);
+                } else {
+                    error!("could not send chat message: {}", text);
                 }
+                chat.push(ChatMessage::new(mmo_context.username.clone(), text.clone()));
+                text.clear();
+                text_edit_output.response.request_focus();
             }
         });
 }

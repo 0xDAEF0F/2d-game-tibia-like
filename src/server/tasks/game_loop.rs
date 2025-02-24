@@ -105,8 +105,10 @@ pub fn game_loop_task(
                 };
                 udp_socket.send_msg_and_log_(ps, Some(player_udp)).await;
 
-                let rest_players_udp_msg_future = players.values().filter_map(|ps| {
-                    (ps.id != player.id).then(|| {
+                let rest_players_udp_msg_future = players
+                    .values()
+                    .filter(|&ps| (ps.id != player.id))
+                    .map(|ps| {
                         udp_socket.send_msg_and_log_(
                             UdpServerMsg::OtherPlayer {
                                 username: ps.username.clone(),
@@ -115,8 +117,7 @@ pub fn game_loop_task(
                             },
                             Some(player_udp),
                         )
-                    })
-                });
+                    });
                 join_all(rest_players_udp_msg_future).await;
 
                 let objects = UdpServerMsg::Objects(game_objects.clone());

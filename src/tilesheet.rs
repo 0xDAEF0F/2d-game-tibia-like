@@ -1,8 +1,8 @@
 use crate::Location;
 use egui_macroquad::macroquad::prelude::*;
 use log::info;
-use std::{collections::HashMap, hash::Hash, sync::Arc};
-use tiled::{Layer, LayerType, Map, ObjectLayer, TileLayer, Tileset};
+use std::{collections::HashMap, sync::Arc};
+use tiled::{Map, Tileset};
 
 /// A container for a tileset and the texture it references.
 #[derive(Debug)]

@@ -21,6 +21,8 @@ async fn main() -> Result<()> {
     let tcp_listener = TcpListener::bind(SERVER_TCP_ADDR).await?;
     info!("Server listening on TCP: {}", SERVER_TCP_ADDR);
 
+    // let _player = true;
+
     // state
     let address_mapping: HashMap<SocketAddr, Uuid> = HashMap::new(); // tcp or udp addr -> player_id
     let address_mapping = Arc::new(Mutex::new(address_mapping));

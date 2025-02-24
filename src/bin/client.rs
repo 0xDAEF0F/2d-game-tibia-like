@@ -646,7 +646,7 @@ fn bfs_find_path(map: &QuickMap, start: Location, end: Location) -> Vec<Location
 
         for next in possible_moves {
             // Check if position is within bounds
-            if next.0 >= MAP_WIDTH as u32 || next.1 >= MAP_HEIGHT as u32 {
+            if next.0 >= MAP_WIDTH || next.1 >= MAP_HEIGHT {
                 continue;
             }
 
@@ -701,6 +701,13 @@ fn handle_route(player: &mut Player, game_objects: &GameObjects, other_players: 
     }
 
     let next_location = player.route.front().unwrap();
+
+    // TODO: there might be other objects on the path that you can't move through
+    if let Some(obj) = game_objects.0.get(next_location) {
+        if obj.is_monster() {
+            return;
+        }
+    }
 
     let key = match (
         next_location.0 as isize - player.curr_location.0 as isize,
