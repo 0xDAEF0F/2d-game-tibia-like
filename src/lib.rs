@@ -22,8 +22,8 @@ pub type Location = (u32, u32); // (x, y) coordinates
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct OtherPlayer {
-    pub username: String,
-    pub location: Location,
+    pub username:  String,
+    pub location:  Location,
     pub direction: Direction,
 }
 
@@ -31,12 +31,12 @@ pub struct OtherPlayer {
 /// the client to begin with.
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct InitPlayer {
-    pub id: Uuid,
-    pub username: String,
-    pub location: Location,
-    pub hp: u32,
-    pub max_hp: u32,
-    pub level: u32,
+    pub id:        Uuid,
+    pub username:  String,
+    pub location:  Location,
+    pub hp:        u32,
+    pub max_hp:    u32,
+    pub level:     u32,
     pub direction: Direction,
 }
 

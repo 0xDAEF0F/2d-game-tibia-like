@@ -1,6 +1,8 @@
-use crate::OtherPlayer;
-use crate::client::{Cc, ClientChannel};
-use crate::udp::UdpServerMsg;
+use crate::{
+    OtherPlayer,
+    client::{Cc, ClientChannel},
+    udp::UdpServerMsg,
+};
 use anyhow::Result;
 use std::sync::Arc;
 use tokio::{net::UdpSocket, sync::mpsc::UnboundedSender, task::JoinHandle};
@@ -21,7 +23,7 @@ pub fn udp_recv_task(
                         client_request_id,
                     } => {
                         let cc = ClientChannel {
-                            id: user_id,
+                            id:  user_id,
                             msg: crate::client::Cc::PlayerMove {
                                 client_request_id,
                                 location,
@@ -31,7 +33,7 @@ pub fn udp_recv_task(
                     }
                     UdpServerMsg::Objects(game_objects) => {
                         let cc = ClientChannel {
-                            id: user_id,
+                            id:  user_id,
                             msg: Cc::Objects(game_objects),
                         };
                         cc_tx.send(cc)?;
@@ -43,7 +45,7 @@ pub fn udp_recv_task(
                         direction,
                     } => {
                         let cc = ClientChannel {
-                            id: user_id,
+                            id:  user_id,
                             msg: Cc::OtherPlayer(OtherPlayer {
                                 username,
                                 location,

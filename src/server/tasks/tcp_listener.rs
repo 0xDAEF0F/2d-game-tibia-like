@@ -1,20 +1,20 @@
 use super::Players;
-use crate::constants::{MAP_HEIGHT, MAP_WIDTH};
-use crate::server::{Direction, Player, Sc, ServerChannel};
-use crate::tcp::*;
-use crate::{InitPlayer, Location};
+use crate::{
+    InitPlayer, Location,
+    constants::{MAP_HEIGHT, MAP_WIDTH},
+    server::{Direction, Player, Sc, ServerChannel},
+    tcp::*,
+};
 use anyhow::{Context, Result, bail};
 use log::{debug, error, info, trace, warn};
-use std::collections::HashMap;
-use std::net::SocketAddr;
-use std::sync::Arc;
-use tokio::io::{AsyncReadExt, AsyncWriteExt};
-use tokio::net::tcp::OwnedReadHalf;
-use tokio::net::{TcpListener, TcpStream};
-use tokio::sync::{Mutex, mpsc::UnboundedSender};
-use tokio::task::JoinHandle;
-use tokio_stream::StreamExt;
-use tokio_stream::wrappers::TcpListenerStream;
+use std::{collections::HashMap, net::SocketAddr, sync::Arc};
+use tokio::{
+    io::{AsyncReadExt, AsyncWriteExt},
+    net::{TcpListener, TcpStream, tcp::OwnedReadHalf},
+    sync::{Mutex, mpsc::UnboundedSender},
+    task::JoinHandle,
+};
+use tokio_stream::{StreamExt, wrappers::TcpListenerStream};
 use uuid::Uuid;
 
 pub fn tcp_listener_task(
@@ -56,7 +56,8 @@ fn handle_tcp_stream(
         let user_address = stream.peer_addr().expect("expect to have the user address");
 
         // if it fails to do so (auth) this task will be exited
-        let auth_type = match authenticate_tcp_client(&mut stream, players.clone()).await {
+        let auth_type = match authenticate_tcp_client(&mut stream, players.clone()).await
+        {
             Ok(u) => u,
             Err(e) => {
                 error!("failed to authenticate {user_address}: {e}");
@@ -71,7 +72,8 @@ fn handle_tcp_stream(
                 players: Arc<Mutex<HashMap<Uuid, Player>>>,
             ) -> Location {
                 let players = players.lock().await;
-                let taken_locations = players.values().map(|p| p.location).collect::<Vec<_>>();
+                let taken_locations =
+                    players.values().map(|p| p.location).collect::<Vec<_>>();
                 use egui_macroquad::macroquad::rand::gen_range;
                 loop {
                     let x = gen_range(0, MAP_WIDTH - 1);
@@ -83,28 +85,27 @@ fn handle_tcp_stream(
             }
 
             let init_player = InitPlayer {
-                id: Uuid::new_v4(),
-                username: username.clone(),
-                location: generate_spawn_location(players.clone()).await,
-                hp: 100,
-                max_hp: 100,
-                level: 1,
+                id:        Uuid::new_v4(),
+                username:  username.clone(),
+                location:  generate_spawn_location(players.clone()).await,
+                hp:        100,
+                max_hp:    100,
+                level:     1,
                 direction: Direction::South,
             };
 
-            let ser = bincode::serialize(&TcpServerMsg::InitOk(init_player.clone())).unwrap();
+            let ser =
+                bincode::serialize(&TcpServerMsg::InitOk(init_player.clone())).unwrap();
             if tcp_write.write_all(&ser).await.is_err() {
                 error!("failed to send init ok to user: {username}");
                 return;
             };
 
-            let new_player = Player::new(init_player.id, username, user_address, tcp_write);
+            let new_player =
+                Player::new(init_player.id, username, user_address, tcp_write);
 
             // storage
-            address_mapping
-                .lock()
-                .await
-                .insert(user_address, init_player.id);
+            address_mapping.lock().await.insert(user_address, init_player.id);
             players.lock().await.insert(init_player.id, new_player);
 
             // set up tcp reader
@@ -138,7 +139,10 @@ enum AuthType {
     Connection(String),
 }
 
-async fn authenticate_tcp_client(tcp_stream: &mut TcpStream, players: Players) -> Result<AuthType> {
+async fn authenticate_tcp_client(
+    tcp_stream: &mut TcpStream,
+    players: Players,
+) -> Result<AuthType> {
     let mut buf = [0; 1024];
 
     let size = tcp_stream.read(&mut buf).await?;
@@ -159,9 +163,8 @@ async fn authenticate_tcp_client(tcp_stream: &mut TcpStream, players: Players) -
 
     println!("submitted username is: {}", username);
 
-    let is_username_taken = (players.lock().await)
-        .values()
-        .any(|p| p.username == username);
+    let is_username_taken =
+        (players.lock().await).values().any(|p| p.username == username);
 
     if is_username_taken {
         let str = format!("username: {} is taken.", username);
@@ -192,8 +195,11 @@ fn setup_tcp_reader(
         loop {
             match tcp_read.read(&mut buffer).await {
                 Ok(n) if n > 0 => {
-                    let Ok(msg) = bincode::deserialize::<TcpClientMsg>(&buffer[..n]) else {
-                        error!("could not deserialize msg from client. closing connection.");
+                    let Ok(msg) = bincode::deserialize::<TcpClientMsg>(&buffer[..n])
+                    else {
+                        error!(
+                            "could not deserialize msg from client. closing connection."
+                        );
                         break;
                     };
 
@@ -212,7 +218,7 @@ fn setup_tcp_reader(
                     };
 
                     let sc = ServerChannel {
-                        id: user_id,
+                        id:  user_id,
                         msg: sc,
                     };
 
@@ -221,13 +227,14 @@ fn setup_tcp_reader(
                 _ => {
                     info!("{:?} closed TCP connnection or tcp read failed.", peer_addr);
 
-                    let Some(user_id) = address_mapping.lock().await.get(&peer_addr).copied()
+                    let Some(user_id) =
+                        address_mapping.lock().await.get(&peer_addr).copied()
                     else {
                         break;
                     };
 
                     let disconnect = ServerChannel {
-                        id: user_id,
+                        id:  user_id,
                         msg: Sc::Disconnect,
                     };
 

@@ -16,7 +16,8 @@ impl Tilesheet {
         &self.tileset.name
     }
 
-    /// Create a tilesheet from a Tiled tileset, loading its texture along the way.
+    /// Create a tilesheet from a Tiled tileset, loading its texture
+    /// along the way.
     pub fn from_tileset(tileset: Arc<Tileset>) -> Tilesheet {
         Tilesheet {
             texture: texture_from_tileset(&tileset),
@@ -45,7 +46,8 @@ impl Tilesheet {
         let tile_height = self.tileset.tile_height;
         let spacing = self.tileset.spacing;
         let margin = self.tileset.margin;
-        let tiles_per_row = (self.tileset.image.as_ref().unwrap().width as u32 - margin + spacing)
+        let tiles_per_row = (self.tileset.image.as_ref().unwrap().width as u32 - margin
+            + spacing)
             / (tile_width + spacing);
         let x = id % tiles_per_row * tile_width;
         let y = id / tiles_per_row * tile_height;
@@ -98,7 +100,8 @@ impl MmoTilesheets<'_> {
         let tile_height = tileset.tile_height;
         let spacing = tileset.spacing;
         let margin = tileset.margin;
-        let tiles_per_row = (tileset.image.as_ref().unwrap().width as u32 - margin + spacing)
+        let tiles_per_row = (tileset.image.as_ref().unwrap().width as u32 - margin
+            + spacing)
             / (tile_width + spacing);
         let x = id % tiles_per_row * tile_width;
         let y = id / tiles_per_row * tile_height;

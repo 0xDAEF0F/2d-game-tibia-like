@@ -2,24 +2,31 @@ use anyhow::Result;
 use egui_macroquad::macroquad;
 use log::{debug, error, info};
 use macroquad::{Window, prelude::*};
-use my_mmo::client::tasks::{tcp_reader_task, udp_recv_task};
-use my_mmo::client::{Cc, ChatMessage, ClientChannel, render_entity_name};
-use my_mmo::client::{MmoContext, OtherPlayer, OtherPlayers, Player, make_egui};
-use my_mmo::constants::*;
-use my_mmo::sendable::SendableSync;
-use my_mmo::server::Direction;
-use my_mmo::tcp::{TcpClientMsg, TcpServerMsg};
-use my_mmo::udp::UdpClientMsg;
-use my_mmo::*;
-use std::collections::hash_map::Entry;
-use std::collections::{HashMap, VecDeque};
-use std::net::SocketAddr;
-use std::sync::{Arc, Mutex};
-use std::time::Duration;
+use my_mmo::{
+    client::{
+        Cc, ChatMessage, ClientChannel, MmoContext, OtherPlayer, OtherPlayers, Player,
+        make_egui, render_entity_name,
+        tasks::{tcp_reader_task, udp_recv_task},
+    },
+    constants::*,
+    sendable::SendableSync,
+    server::Direction,
+    tcp::{TcpClientMsg, TcpServerMsg},
+    udp::UdpClientMsg,
+    *,
+};
+use std::{
+    collections::{HashMap, VecDeque, hash_map::Entry},
+    net::SocketAddr,
+    sync::{Arc, Mutex},
+    time::Duration,
+};
 use tiled::{Loader, Map};
-use tokio::io::{AsyncBufReadExt, AsyncReadExt, AsyncWriteExt, BufReader, stdin};
-use tokio::net::{TcpSocket, TcpStream, UdpSocket};
-use tokio::sync::mpsc::{self, UnboundedReceiver, UnboundedSender};
+use tokio::{
+    io::{AsyncBufReadExt, AsyncReadExt, AsyncWriteExt, BufReader, stdin},
+    net::{TcpSocket, TcpStream, UdpSocket},
+    sync::mpsc::{self, UnboundedReceiver, UnboundedSender},
+};
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -34,10 +41,7 @@ async fn main() -> Result<()> {
 
     let init_player = request_new_session_from_server(&mut stream).await?;
 
-    println!(
-        "username: {} was accepted by the server.",
-        init_player.username
-    );
+    println!("username: {} was accepted by the server.", init_player.username);
 
     info!("client connected to server at: {}", SERVER_TCP_ADDR);
 
@@ -60,19 +64,19 @@ async fn main() -> Result<()> {
         ..Default::default()
     };
     let player = Player {
-        id: init_player.id,
-        username: init_player.username,
-        level: init_player.level,
-        hp: init_player.hp,
-        max_hp: init_player.max_hp,
-        frame: 0,
-        request_id: 0,
-        speed: BASE_MOVE_DELAY,
-        curr_location: init_player.location,
-        prev_location: init_player.location,
-        route: VecDeque::new(),
+        id:              init_player.id,
+        username:        init_player.username,
+        level:           init_player.level,
+        hp:              init_player.hp,
+        max_hp:          init_player.max_hp,
+        frame:           0,
+        request_id:      0,
+        speed:           BASE_MOVE_DELAY,
+        curr_location:   init_player.location,
+        prev_location:   init_player.location,
+        route:           VecDeque::new(),
         last_move_timer: 0.0,
-        direction: init_player.direction,
+        direction:       init_player.direction,
     };
 
     Window::from_config(conf, draw(socket, stream, cc_rx, cc_tx, player));
@@ -139,9 +143,9 @@ async fn draw(
     let mut is_disconnected = false;
 
     let mut mmo_context = MmoContext {
-        username: player.username.clone(),
-        user_text: "".to_string(),
-        user_chat: vec![],
+        username:                player.username.clone(),
+        user_text:               "".to_string(),
+        user_chat:               vec![],
         server_tcp_write_stream: tcp_writer.clone(),
     };
 
@@ -189,14 +193,20 @@ async fn draw(
                 Cc::OtherPlayer(op) => match other_players.0.entry(op.username.clone()) {
                     Entry::Occupied(mut entry) => {
                         let player = entry.get_mut();
-                        if player.location != op.location || player.direction != op.direction {
+                        if player.location != op.location
+                            || player.direction != op.direction
+                        {
                             player.frame = (player.frame + 1) % 3;
                             player.location = op.location;
                             player.direction = op.direction;
                         }
                     }
                     Entry::Vacant(entry) => {
-                        entry.insert(OtherPlayer::new(op.username, op.location, op.direction));
+                        entry.insert(OtherPlayer::new(
+                            op.username,
+                            op.location,
+                            op.direction,
+                        ));
                     }
                 },
             }
@@ -245,12 +255,12 @@ fn send_pos_to_server(player: &mut Player, socket: &UdpSocket) {
     }
 
     let msg = UdpClientMsg::PlayerMove {
-        id: player.id,
+        id:                player.id,
         client_request_id: {
             player.request_id += 1;
             player.request_id
         },
-        location: player.curr_location,
+        location:          player.curr_location,
     };
     socket.send_msg_and_log(&msg, None);
 }
@@ -266,7 +276,12 @@ fn handle_player_movement(player: &mut Player, op: &OtherPlayers) {
     let mut keys_down = get_keys_down();
 
     if keys_down.len() == 1 {
-        handle_single_key_movement(player, op, keys_down.drain().next().unwrap(), current_time);
+        handle_single_key_movement(
+            player,
+            op,
+            keys_down.drain().next().unwrap(),
+            current_time,
+        );
     } else if keys_down.len() == 2 {
         handle_double_key_movement(player, op, current_time);
     }
@@ -326,7 +341,12 @@ fn handle_double_key_movement(player: &mut Player, op: &OtherPlayers, current_ti
     }
 }
 
-fn move_player(player: &mut Player, direction: (isize, isize), current_time: f64, speed: f32) {
+fn move_player(
+    player: &mut Player,
+    direction: (isize, isize),
+    current_time: f64,
+    speed: f32,
+) {
     player.prev_location = player.curr_location;
     player.curr_location.0 = (player.curr_location.0 as isize + direction.0) as u32;
     player.curr_location.1 = (player.curr_location.1 as isize + direction.1) as u32;
@@ -379,7 +399,11 @@ fn render_view(player: &Player, map: &Map, tilesheets: &MmoTilesheets) {
     }
 }
 
-fn render_objects(player: &Player, tilesheets: &MmoTilesheets, game_objects: &GameObjects) {
+fn render_objects(
+    player: &Player,
+    tilesheets: &MmoTilesheets,
+    game_objects: &GameObjects,
+) {
     for i in 0..CAMERA_HEIGHT {
         for j in 0..CAMERA_WIDTH {
             let x = player.curr_location.0 as i32 - CAMERA_WIDTH as i32 / 2 + j as i32;
@@ -400,7 +424,10 @@ fn render_objects(player: &Player, tilesheets: &MmoTilesheets, game_objects: &Ga
             if let GameObject::Orc { hp, direction, .. } = game_object {
                 log::trace!("Orc direction is: {direction:?}",);
 
-                render_entity_name("Orc", (j as f32 * TILE_WIDTH, i as f32 * TILE_HEIGHT));
+                render_entity_name(
+                    "Orc",
+                    (j as f32 * TILE_WIDTH, i as f32 * TILE_HEIGHT),
+                );
 
                 let healthbar_pct: f32 = *hp as f32 / ORC_MAX_HP as f32;
 
@@ -481,7 +508,8 @@ fn handle_start_move_object(
 
     // check if the object is adjacent to the player
     let (obj_x, obj_y) = (x as i32, y as i32);
-    let (player_x, player_y) = (player.curr_location.0 as i32, player.curr_location.1 as i32);
+    let (player_x, player_y) =
+        (player.curr_location.0 as i32, player.curr_location.1 as i32);
 
     let is_adjacent = (obj_x - player_x).abs() <= 1 && (obj_y - player_y).abs() <= 1;
     if !is_adjacent {
@@ -518,24 +546,22 @@ fn handle_end_move_object(
 
     if let Some(moving_obj) = moving_object.take() {
         if let Some(obj) = game_objects.0.remove(&moving_obj) {
-            debug!(
-                "sending moving object from {:?} to {:?}",
-                moving_obj,
-                (x, y)
-            );
+            debug!("sending moving object from {:?} to {:?}", moving_obj, (x, y));
 
             game_objects.0.insert((x, y), obj);
             let msg = UdpClientMsg::MoveObject {
-                id: player.id,
+                id:   player.id,
                 from: moving_obj,
-                to: (x, y),
+                to:   (x, y),
             };
             socket.send_msg_and_log(&msg, None);
         }
     }
 }
 
-async fn request_new_session_from_server(tcp_stream: &mut TcpStream) -> Result<InitPlayer> {
+async fn request_new_session_from_server(
+    tcp_stream: &mut TcpStream,
+) -> Result<InitPlayer> {
     loop {
         // request user's username for the session
         let mut username = String::new();
@@ -555,7 +581,8 @@ async fn request_new_session_from_server(tcp_stream: &mut TcpStream) -> Result<I
         }
 
         // send the username to the server
-        let Ok(init_msg) = bincode::serialize(&TcpClientMsg::Init(username.clone())) else {
+        let Ok(init_msg) = bincode::serialize(&TcpClientMsg::Init(username.clone()))
+        else {
             println!("failed to serialize message. try again.");
             continue;
         };
@@ -688,7 +715,11 @@ fn program_route_if_user_clicks_map(
     player.route = VecDeque::from(path);
 }
 
-fn handle_route(player: &mut Player, game_objects: &GameObjects, other_players: &OtherPlayers) {
+fn handle_route(
+    player: &mut Player,
+    game_objects: &GameObjects,
+    other_players: &OtherPlayers,
+) {
     if player.route.is_empty() {
         return;
     }
@@ -702,7 +733,8 @@ fn handle_route(player: &mut Player, game_objects: &GameObjects, other_players: 
 
     let next_location = player.route.front().unwrap();
 
-    // TODO: there might be other objects on the path that you can't move through
+    // TODO: there might be other objects on the path that you can't move
+    // through
     if let Some(obj) = game_objects.0.get(next_location) {
         if obj.is_monster() {
             return;

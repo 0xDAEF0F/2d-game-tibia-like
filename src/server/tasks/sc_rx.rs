@@ -1,8 +1,8 @@
-use crate::tcp::*;
-use crate::udp::*;
 use crate::{
     GameObjects,
     server::{Direction, Player, Sc, ServerChannel},
+    tcp::*,
+    udp::*,
 };
 use anyhow::Result;
 use futures::future::join_all;

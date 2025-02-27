@@ -1,7 +1,9 @@
 use super::{ChatMessage, MmoContext};
 use crate::tcp::TcpClientMsg;
-use egui_macroquad::egui::{self, Key, Modifiers, Pos2};
-use egui_macroquad::macroquad::prelude::*;
+use egui_macroquad::{
+    egui::{self, Key, Modifiers, Pos2},
+    macroquad::prelude::*,
+};
 
 pub fn create_chat_window(mmo_context: &mut MmoContext, egui_ctx: &egui::Context) {
     let chat = &mut mmo_context.user_chat;
@@ -29,7 +31,9 @@ pub fn create_chat_window(mmo_context: &mut MmoContext, egui_ctx: &egui::Context
                 .hint_text("type text here")
                 .show(ui);
 
-            if ui.input_mut(|i| i.consume_key(Modifiers::NONE, Key::Enter)) && !text.is_empty() {
+            if ui.input_mut(|i| i.consume_key(Modifiers::NONE, Key::Enter))
+                && !text.is_empty()
+            {
                 let msg = TcpClientMsg::ChatMsg(text.clone());
                 let serialized = bincode::serialize(&msg).unwrap();
                 if let Ok(size) = tcp_writer.lock().unwrap().try_write(&serialized) {

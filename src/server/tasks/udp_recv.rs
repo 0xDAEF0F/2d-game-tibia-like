@@ -1,5 +1,7 @@
-use crate::server::{Player, Sc, ServerChannel};
-use crate::udp::UdpClientMsg;
+use crate::{
+    server::{Player, Sc, ServerChannel},
+    udp::UdpClientMsg,
+};
 use anyhow::Result;
 use log::{debug, error};
 use std::{collections::HashMap, net::SocketAddr, sync::Arc};
@@ -31,7 +33,9 @@ pub fn udp_recv_task(
                     p.udp_socket = Some(src);
                 }
             } else {
-                error!("received UDP message that had a UUID that was not in the players list!");
+                error!(
+                    "received UDP message that had a UUID that was not in the players list!"
+                );
                 continue;
             };
 

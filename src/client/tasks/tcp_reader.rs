@@ -1,11 +1,13 @@
-use crate::client::{Cc, ClientChannel};
-use crate::tcp::TcpServerMsg;
+use crate::{
+    client::{Cc, ClientChannel},
+    tcp::TcpServerMsg,
+};
 use anyhow::Result;
 use log::{debug, info};
-use tokio::io::AsyncReadExt;
-use tokio::net::tcp::OwnedReadHalf;
-use tokio::sync::mpsc::UnboundedSender;
-use tokio::task::JoinHandle;
+use tokio::{
+    io::AsyncReadExt, net::tcp::OwnedReadHalf, sync::mpsc::UnboundedSender,
+    task::JoinHandle,
+};
 use uuid::Uuid;
 
 pub fn tcp_reader_task(
@@ -20,8 +22,12 @@ pub fn tcp_reader_task(
                 Ok(size) if size > 0 => {
                     debug!("received msg from server through the tcp reader");
 
-                    let Ok(server_msg) = bincode::deserialize::<TcpServerMsg>(&buf[0..size]) else {
-                        debug!("could not deserialize message from server in tcp listener");
+                    let Ok(server_msg) =
+                        bincode::deserialize::<TcpServerMsg>(&buf[0..size])
+                    else {
+                        debug!(
+                            "could not deserialize message from server in tcp listener"
+                        );
                         continue;
                     };
 
@@ -37,7 +43,7 @@ pub fn tcp_reader_task(
                     };
 
                     let msg = ClientChannel {
-                        id: user_id,
+                        id:  user_id,
                         msg: cc,
                     };
 

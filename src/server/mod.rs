@@ -1,33 +1,30 @@
 mod player;
 pub mod tasks;
 
-use crate::GameObject;
-use crate::GameObjects;
-use crate::Location;
-use crate::constants::*;
+use crate::{GameObject, GameObjects, Location, constants::*};
 use log::debug;
 pub use player::*;
-use std::collections::HashMap;
-use std::collections::HashSet;
-use std::collections::VecDeque;
-use std::ops::{Index, IndexMut};
-use std::time::Instant;
+use std::{
+    collections::{HashMap, HashSet, VecDeque},
+    ops::{Index, IndexMut},
+    time::Instant,
+};
 use uuid::Uuid;
 
 pub struct ServerChannel {
-    id: Uuid,
+    id:  Uuid,
     msg: Sc,
 }
 
 pub enum Sc {
     PlayerMove {
         client_request_id: u32,
-        location: Location,
+        location:          Location,
     },
     Disconnect,
     MoveObject {
         from: Location,
-        to: Location,
+        to:   Location,
     },
     ChatMsg(String), // message
     Ping(u32),       // ping_id
@@ -57,7 +54,7 @@ impl MmoMap {
                     tileset_location,
                     ..
                 } => MapElement::Monster(Monster {
-                    id: (id, tileset_location),
+                    id:            (id, tileset_location),
                     last_movement: Instant::now(),
                 }),
             };
@@ -155,7 +152,7 @@ pub enum MapElement {
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Monster {
-    pub id: (u32, usize), // id, tileset_location
+    pub id:            (u32, usize), // id, tileset_location
     pub last_movement: Instant,
 }
 

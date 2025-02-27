@@ -1,18 +1,17 @@
 use super::Players;
-use crate::GameObjects;
-use crate::constants::*;
-use crate::sendable::SendableAsync;
-use crate::server::{MapElement, MmoMap};
-use crate::udp::*;
+use crate::{
+    GameObjects,
+    constants::*,
+    sendable::SendableAsync,
+    server::{MapElement, MmoMap},
+    udp::*,
+};
 use anyhow::Result;
 use futures::future::join_all;
 use itertools::Itertools;
 use log::{debug, error, trace};
-use std::sync::Arc;
-use std::time::Duration;
-use tokio::net::UdpSocket;
-use tokio::sync::Mutex;
-use tokio::task::JoinHandle;
+use std::{sync::Arc, time::Duration};
+use tokio::{net::UdpSocket, sync::Mutex, task::JoinHandle};
 
 type Udp = Arc<UdpSocket>;
 type Objects = Arc<Mutex<GameObjects>>;
@@ -69,7 +68,8 @@ pub fn game_loop_task(
 
                         let mut mmo_map = mmo_map.lock().await;
 
-                        let shortest_path = mmo_map.shortest_path(monst_location, player.location);
+                        let shortest_path =
+                            mmo_map.shortest_path(monst_location, player.location);
                         let shortest_path = &shortest_path[1..&shortest_path.len() - 1];
 
                         if shortest_path.is_empty() {
@@ -77,7 +77,8 @@ pub fn game_loop_task(
                             continue;
                         }
 
-                        let MapElement::Monster(monster) = &mmo_map[monst_location] else {
+                        let MapElement::Monster(monster) = &mmo_map[monst_location]
+                        else {
                             debug!("Invalid monster location");
                             continue;
                         };
@@ -100,19 +101,17 @@ pub fn game_loop_task(
                 }
 
                 let ps = UdpServerMsg::PlayerMove {
-                    location: player.location,
+                    location:          player.location,
                     client_request_id: player.client_request_id,
                 };
                 udp_socket.send_msg_and_log_(ps, Some(player_udp)).await;
 
-                let rest_players_udp_msg_future = players
-                    .values()
-                    .filter(|&ps| (ps.id != player.id))
-                    .map(|ps| {
+                let rest_players_udp_msg_future =
+                    players.values().filter(|&ps| (ps.id != player.id)).map(|ps| {
                         udp_socket.send_msg_and_log_(
                             UdpServerMsg::OtherPlayer {
-                                username: ps.username.clone(),
-                                location: ps.location,
+                                username:  ps.username.clone(),
+                                location:  ps.location,
                                 direction: ps.direction,
                             },
                             Some(player_udp),

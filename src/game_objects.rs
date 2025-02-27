@@ -27,29 +27,27 @@ impl GameObjects {
 
         let objects = objects.iter().map(|od| {
             let tile_data = od.tile_data().unwrap();
-            let tiled::TilesetLocation::Map(location) = tile_data.tileset_location() else {
+            let tiled::TilesetLocation::Map(location) = tile_data.tileset_location()
+            else {
                 panic!("Invalid tileset location layer!");
             };
             let tile_id = od.tile_data().expect("expected tile data").id();
 
             let game_object = match tile_id {
                 149 => GameObject::FlowerPot {
-                    id: tile_id,
+                    id:               tile_id,
                     tileset_location: *location,
                 },
                 63 => GameObject::Orc {
-                    id: tile_id,
+                    id:               tile_id,
                     tileset_location: *location,
-                    hp: 100,
-                    direction: Direction::South,
+                    hp:               100,
+                    direction:        Direction::South,
                 },
                 id => todo!("game object id: {id} is not implemented"),
             };
 
-            (
-                ((od.x / TILE_WIDTH) as u32, (od.y / TILE_HEIGHT) as u32),
-                game_object,
-            )
+            (((od.x / TILE_WIDTH) as u32, (od.y / TILE_HEIGHT) as u32), game_object)
         });
         let objects: HashMap<Location, GameObject> = HashMap::from_iter(objects);
 
@@ -77,14 +75,14 @@ pub const ORC_MAX_HP: u32 = 100;
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
 pub enum GameObject {
     FlowerPot {
-        id: u32,
+        id:               u32,
         tileset_location: usize,
     },
     Orc {
-        id: u32,
+        id:               u32,
         tileset_location: usize,
-        hp: u32,
-        direction: Direction,
+        hp:               u32,
+        direction:        Direction,
     },
 }
 

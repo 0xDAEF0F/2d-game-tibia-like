@@ -6,12 +6,12 @@ use uuid::Uuid;
 #[derive(Debug, Serialize, Deserialize)]
 pub enum UdpServerMsg {
     PlayerMove {
-        location: Location,
+        location:          Location,
         client_request_id: u32,
     },
     OtherPlayer {
-        username: String,
-        location: Location,
+        username:  String,
+        location:  Location,
         direction: Direction,
     },
     Objects(GameObjects),
@@ -22,18 +22,18 @@ pub enum UdpServerMsg {
 #[derive(Debug, Serialize, Deserialize)]
 pub enum UdpClientMsg {
     PlayerMove {
-        id: Uuid,
+        id:                Uuid,
         client_request_id: u32,
-        location: Location,
+        location:          Location,
     },
     Ping {
-        id: Uuid,
+        id:                Uuid,
         client_request_id: u32,
     },
     MoveObject {
-        id: Uuid,
+        id:   Uuid,
         from: Location,
-        to: Location,
+        to:   Location,
     },
 }
 

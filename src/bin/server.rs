@@ -1,14 +1,18 @@
 use anyhow::Result;
 use log::info;
-use my_mmo::constants::*;
-use my_mmo::server::tasks::{game_loop_task, sc_rx_task, tcp_listener_task, udp_recv_task};
-use my_mmo::server::{MmoMap, Player, ServerChannel};
-use my_mmo::{GameObjects, MmoLogger};
-use std::collections::HashMap;
-use std::net::SocketAddr;
-use std::sync::Arc;
-use tokio::net::{TcpListener, UdpSocket};
-use tokio::sync::{Mutex, mpsc};
+use my_mmo::{
+    GameObjects, MmoLogger,
+    constants::*,
+    server::{
+        MmoMap, Player, ServerChannel,
+        tasks::{game_loop_task, sc_rx_task, tcp_listener_task, udp_recv_task},
+    },
+};
+use std::{collections::HashMap, net::SocketAddr, sync::Arc};
+use tokio::{
+    net::{TcpListener, UdpSocket},
+    sync::{Mutex, mpsc},
+};
 use uuid::Uuid;
 
 #[tokio::main]
@@ -64,7 +68,8 @@ async fn main() -> Result<()> {
     );
 
     // Handler/processor of server channel messages
-    let task4_handle = sc_rx_task(sc_rx, udp_socket, address_mapping, players, game_objects);
+    let task4_handle =
+        sc_rx_task(sc_rx, udp_socket, address_mapping, players, game_objects);
 
     // not a fan of how this looks but it works ok.
     // it bubbles up to main on the first error and

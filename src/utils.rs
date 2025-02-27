@@ -1,9 +1,10 @@
-use crate::tcp::TcpClientMsg;
-use crate::{Location, constants::*};
+use crate::{Location, constants::*, tcp::TcpClientMsg};
 use egui_macroquad::macroquad::prelude::*;
 use log::trace;
-use std::sync::Mutex;
-use std::{collections::HashMap, sync::Arc};
+use std::{
+    collections::HashMap,
+    sync::{Arc, Mutex},
+};
 use tokio::net::tcp::OwnedWriteHalf;
 
 pub fn draw_delimitator_lines() {
@@ -52,9 +53,9 @@ const PING_INTERVAL: f64 = 5.0;
 
 #[derive(Debug, Default)]
 pub struct PingMonitor {
-    ping_counter: u32,
+    ping_counter:        u32,
     last_sent_ping_time: f64,
-    pings: HashMap<u32, f64>,
+    pings:               HashMap<u32, f64>,
 }
 
 impl PingMonitor {
@@ -70,7 +71,8 @@ impl PingMonitor {
                 self.ping_counter
             };
 
-            let serialized_ping = bincode::serialize(&TcpClientMsg::Ping(ping_id)).unwrap();
+            let serialized_ping =
+                bincode::serialize(&TcpClientMsg::Ping(ping_id)).unwrap();
             _ = socket.lock().unwrap().try_write(&serialized_ping);
 
             self.pings.insert(ping_id, curr_time);
@@ -121,7 +123,12 @@ pub fn get_mouse_map_tile_position(player_location: Location) -> Option<(u32, u3
         let origin_y = py - (CAMERA_HEIGHT as i32 / 2);
         match (origin_x + x as i32, origin_y + y as i32) {
             (x, y) if x.is_negative() || y.is_negative() => None,
-            (x, y) if x >= MAP_WIDTH.try_into().ok()? || y >= MAP_HEIGHT.try_into().ok()? => None,
+            (x, y)
+                if x >= MAP_WIDTH.try_into().ok()?
+                    || y >= MAP_HEIGHT.try_into().ok()? =>
+            {
+                None
+            }
             (x, y) => Some((x as u32, y as u32)),
         }
     })
