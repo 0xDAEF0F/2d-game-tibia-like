@@ -9,15 +9,15 @@ use std::{
 use tokio::net::tcp::OwnedWriteHalf;
 
 pub struct MmoContext {
-    pub username:                String,
-    pub user_text:               String,
-    pub user_chat:               Vec<ChatMessage>,
+    pub username: String,
+    pub user_text: String,
+    pub user_chat: Vec<ChatMessage>,
     pub server_tcp_write_stream: Arc<Mutex<OwnedWriteHalf>>,
 }
 
 pub struct ChatMessage {
-    username:  String,
-    message:   String,
+    username: String,
+    message: String,
     timestamp: DateTime<Local>,
 }
 

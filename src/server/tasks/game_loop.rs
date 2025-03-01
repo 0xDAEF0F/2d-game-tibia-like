@@ -101,7 +101,7 @@ pub fn game_loop_task(
                 }
 
                 let ps = UdpServerMsg::PlayerMove {
-                    location:          player.location,
+                    location: player.location,
                     client_request_id: player.client_request_id,
                 };
                 udp_socket.send_msg_and_log_(ps, Some(player_udp)).await;
@@ -110,8 +110,8 @@ pub fn game_loop_task(
                     players.values().filter(|&ps| (ps.id != player.id)).map(|ps| {
                         udp_socket.send_msg_and_log_(
                             UdpServerMsg::OtherPlayer {
-                                username:  ps.username.clone(),
-                                location:  ps.location,
+                                username: ps.username.clone(),
+                                location: ps.location,
                                 direction: ps.direction,
                             },
                             Some(player_udp),

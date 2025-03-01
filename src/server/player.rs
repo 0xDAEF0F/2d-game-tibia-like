@@ -14,17 +14,17 @@ pub enum Direction {
 
 #[derive(Debug)]
 pub struct Player {
-    pub id:                Uuid,
-    pub username:          String,
+    pub id: Uuid,
+    pub username: String,
     pub client_request_id: u32,
-    pub location:          Location,
+    pub location: Location,
 
-    pub hp:        u32,
-    pub max_hp:    u32,
-    pub level:     u32,
+    pub hp: u32,
+    pub max_hp: u32,
+    pub level: u32,
     pub direction: Direction,
 
-    pub tcp_tx:     OwnedWriteHalf,
+    pub tcp_tx: OwnedWriteHalf,
     pub tcp_socket: SocketAddr,
     pub udp_socket: Option<SocketAddr>,
 }

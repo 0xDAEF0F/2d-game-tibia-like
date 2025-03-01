@@ -64,19 +64,19 @@ async fn main() -> Result<()> {
         ..Default::default()
     };
     let player = Player {
-        id:              init_player.id,
-        username:        init_player.username,
-        level:           init_player.level,
-        hp:              init_player.hp,
-        max_hp:          init_player.max_hp,
-        frame:           0,
-        request_id:      0,
-        speed:           BASE_MOVE_DELAY,
-        curr_location:   init_player.location,
-        prev_location:   init_player.location,
-        route:           VecDeque::new(),
+        id: init_player.id,
+        username: init_player.username,
+        level: init_player.level,
+        hp: init_player.hp,
+        max_hp: init_player.max_hp,
+        frame: 0,
+        request_id: 0,
+        speed: BASE_MOVE_DELAY,
+        curr_location: init_player.location,
+        prev_location: init_player.location,
+        route: VecDeque::new(),
         last_move_timer: 0.0,
-        direction:       init_player.direction,
+        direction: init_player.direction,
     };
 
     Window::from_config(conf, draw(socket, stream, cc_rx, cc_tx, player));
@@ -143,9 +143,9 @@ async fn draw(
     let mut is_disconnected = false;
 
     let mut mmo_context = MmoContext {
-        username:                player.username.clone(),
-        user_text:               "".to_string(),
-        user_chat:               vec![],
+        username: player.username.clone(),
+        user_text: "".to_string(),
+        user_chat: vec![],
         server_tcp_write_stream: tcp_writer.clone(),
     };
 
@@ -255,12 +255,12 @@ fn send_pos_to_server(player: &mut Player, socket: &UdpSocket) {
     }
 
     let msg = UdpClientMsg::PlayerMove {
-        id:                player.id,
+        id: player.id,
         client_request_id: {
             player.request_id += 1;
             player.request_id
         },
-        location:          player.curr_location,
+        location: player.curr_location,
     };
     socket.send_msg_and_log(&msg, None);
 }
@@ -550,9 +550,9 @@ fn handle_end_move_object(
 
             game_objects.0.insert((x, y), obj);
             let msg = UdpClientMsg::MoveObject {
-                id:   player.id,
+                id: player.id,
                 from: moving_obj,
-                to:   (x, y),
+                to: (x, y),
             };
             socket.send_msg_and_log(&msg, None);
         }

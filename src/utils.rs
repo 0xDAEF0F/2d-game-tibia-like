@@ -53,9 +53,9 @@ const PING_INTERVAL: f64 = 5.0;
 
 #[derive(Debug, Default)]
 pub struct PingMonitor {
-    ping_counter:        u32,
+    ping_counter: u32,
     last_sent_ping_time: f64,
-    pings:               HashMap<u32, f64>,
+    pings: HashMap<u32, f64>,
 }
 
 impl PingMonitor {

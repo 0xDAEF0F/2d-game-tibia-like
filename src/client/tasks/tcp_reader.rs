@@ -43,7 +43,7 @@ pub fn tcp_reader_task(
                     };
 
                     let msg = ClientChannel {
-                        id:  user_id,
+                        id: user_id,
                         msg: cc,
                     };
 

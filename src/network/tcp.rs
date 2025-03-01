@@ -16,13 +16,13 @@ pub enum TcpServerMsg {
 #[derive(Debug, Serialize, Deserialize)]
 pub enum TcpClientMsg {
     PlayerState {
-        id:                Uuid,
-        location:          Location,
+        id: Uuid,
+        location: Location,
         client_request_id: u32,
     },
     MoveObject {
         from: Location,
-        to:   Location,
+        to: Location,
     },
     Disconnect,
     Ping(u32),

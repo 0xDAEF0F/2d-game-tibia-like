@@ -85,12 +85,12 @@ fn handle_tcp_stream(
             }
 
             let init_player = InitPlayer {
-                id:        Uuid::new_v4(),
-                username:  username.clone(),
-                location:  generate_spawn_location(players.clone()).await,
-                hp:        100,
-                max_hp:    100,
-                level:     1,
+                id: Uuid::new_v4(),
+                username: username.clone(),
+                location: generate_spawn_location(players.clone()).await,
+                hp: 100,
+                max_hp: 100,
+                level: 1,
                 direction: Direction::South,
             };
 
@@ -218,7 +218,7 @@ fn setup_tcp_reader(
                     };
 
                     let sc = ServerChannel {
-                        id:  user_id,
+                        id: user_id,
                         msg: sc,
                     };
 
@@ -234,7 +234,7 @@ fn setup_tcp_reader(
                     };
 
                     let disconnect = ServerChannel {
-                        id:  user_id,
+                        id: user_id,
                         msg: Sc::Disconnect,
                     };
 

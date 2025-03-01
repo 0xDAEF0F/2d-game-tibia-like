@@ -5,19 +5,19 @@ use uuid::Uuid;
 
 #[derive(Debug)]
 pub struct Player {
-    pub id:              Uuid,
-    pub username:        String,
-    pub request_id:      u32,
-    pub level:           u32,
-    pub hp:              u32,
-    pub max_hp:          u32,
-    pub curr_location:   Location,
-    pub prev_location:   Location,
-    pub route:           VecDeque<Location>,
+    pub id: Uuid,
+    pub username: String,
+    pub request_id: u32,
+    pub level: u32,
+    pub hp: u32,
+    pub max_hp: u32,
+    pub curr_location: Location,
+    pub prev_location: Location,
+    pub route: VecDeque<Location>,
     pub last_move_timer: f64,
-    pub speed:           f32,
-    pub direction:       Direction,
-    pub frame:           u32,
+    pub speed: f32,
+    pub direction: Direction,
+    pub frame: u32,
 }
 
 impl Player {
@@ -122,10 +122,10 @@ impl OtherPlayers {
 /// the client.
 #[derive(Debug)]
 pub struct OtherPlayer {
-    pub username:  String,
-    pub location:  Location,
+    pub username: String,
+    pub location: Location,
     pub direction: Direction,
-    pub frame:     u32,
+    pub frame: u32,
 }
 
 impl OtherPlayer {
