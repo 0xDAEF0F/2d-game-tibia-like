@@ -2,8 +2,9 @@
 
 ## Features
 
-- [ ] Implement simple combat system.
 - [ ] Implement a system to navigate to different levels in the map (z index).
+- [ ] Implement death mechanics. when you die you resurect.
+- [x] Implement simple combat system.
 - [x] When user clicks a part of the map it should go walk towards it.
 - [x] Never spawn a player in the same spot as somebody else.
 - [x] Animate movement of player/objects between their sprites.

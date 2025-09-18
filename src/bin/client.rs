@@ -552,21 +552,22 @@ fn handle_end_move_object(
 	let (x, y) = (abs_x as u32, abs_y as u32);
 
 	if let Some(moving_obj) = moving_object.take()
-		&& let Some(obj) = game_objects.0.remove(&moving_obj) {
-			debug!(
-				"sending moving object from {:?} to {:?}",
-				moving_obj,
-				(x, y)
-			);
+		&& let Some(obj) = game_objects.0.remove(&moving_obj)
+	{
+		debug!(
+			"sending moving object from {:?} to {:?}",
+			moving_obj,
+			(x, y)
+		);
 
-			game_objects.0.insert((x, y), obj);
-			let msg = UdpClientMsg::MoveObject {
-				id: player.id,
-				from: moving_obj,
-				to: (x, y),
-			};
-			socket.send_msg_and_log(&msg, None);
-		}
+		game_objects.0.insert((x, y), obj);
+		let msg = UdpClientMsg::MoveObject {
+			id: player.id,
+			from: moving_obj,
+			to: (x, y),
+		};
+		socket.send_msg_and_log(&msg, None);
+	}
 }
 
 async fn request_new_session_from_server(
@@ -725,6 +726,9 @@ fn program_route_if_user_clicks_map(
 	player.route = VecDeque::from(path);
 }
 
+/// Processes the player's auto-pathing route by moving to the next location
+/// in the route queue. Skips movement if blocked by monsters and respects
+/// the player's movement speed cooldown.
 fn handle_route(
 	player: &mut Player,
 	game_objects: &GameObjects,
@@ -746,9 +750,10 @@ fn handle_route(
 	// TODO: there might be other objects on the path that you can't move
 	// through
 	if let Some(obj) = game_objects.0.get(next_location)
-		&& obj.is_monster() {
-			return;
-		}
+		&& obj.is_monster()
+	{
+		return;
+	}
 
 	let key = match (
 		next_location.0 as isize - player.curr_location.0 as isize,
