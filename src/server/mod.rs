@@ -56,6 +56,7 @@ impl MmoMap {
 				} => MapElement::Monster(Monster {
 					id: (id, tileset_location),
 					last_movement: Instant::now(),
+					last_attack: Instant::now(),
 				}),
 			};
 			map[location] = map_element;
@@ -153,6 +154,7 @@ pub enum MapElement {
 pub struct Monster {
 	pub id: (u32, usize), // id, tileset_location
 	pub last_movement: Instant,
+	pub last_attack: Instant,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]

@@ -16,6 +16,9 @@ pub enum UdpServerMsg {
 	},
 	Objects(GameObjects),
 	Pong(u32),
+	PlayerHealthUpdate {
+		hp: u32,
+	},
 }
 
 // CLIENT -> SERVER

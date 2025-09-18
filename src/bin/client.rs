@@ -212,6 +212,10 @@ async fn draw(
 						));
 					}
 				},
+				Cc::PlayerHealthUpdate { hp } => {
+					player.hp = hp;
+					debug!("Health updated: {}/{}", hp, player.max_hp);
+				}
 			}
 		}
 

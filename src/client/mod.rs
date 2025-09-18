@@ -30,4 +30,7 @@ pub enum Cc {
 	},
 	Pong(u32), // ping_id
 	ReconnectOk,
+	PlayerHealthUpdate {
+		hp: u32,
+	},
 }

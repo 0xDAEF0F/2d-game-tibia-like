@@ -54,6 +54,13 @@ pub fn udp_recv_task(
 						};
 						cc_tx.send(cc)?;
 					}
+					UdpServerMsg::PlayerHealthUpdate { hp } => {
+						let cc = ClientChannel {
+							id: user_id,
+							msg: Cc::PlayerHealthUpdate { hp },
+						};
+						cc_tx.send(cc)?;
+					}
 				};
 			}
 		}

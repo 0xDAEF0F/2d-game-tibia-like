@@ -10,8 +10,9 @@ use anyhow::Result;
 use futures::future::join_all;
 use itertools::Itertools;
 use log::{debug, error, trace};
-use std::{sync::Arc, time::Duration};
+use std::{sync::Arc, time::{Duration, Instant}};
 use tokio::{net::UdpSocket, sync::Mutex, task::JoinHandle};
+use uuid::Uuid;
 
 type Udp = Arc<UdpSocket>;
 type Objects = Arc<Mutex<GameObjects>>;
@@ -28,10 +29,18 @@ pub fn game_loop_task(
 		loop {
 			interval.tick().await;
 
-			let players = players.lock().await;
+			let mut players = players.lock().await;
 			let mut game_objects = game_objects.lock().await;
 
-			for player in players.values() {
+			// Collect player IDs to process
+			let player_ids: Vec<Uuid> = players.keys().copied().collect();
+
+			for player_id in player_ids {
+				let player = match players.get_mut(&player_id) {
+					Some(p) => p,
+					None => continue,
+				};
+
 				let Some(player_udp) = player.udp_socket else {
 					continue;
 				};
@@ -62,7 +71,40 @@ pub fn game_loop_task(
 							(x as i32, y as i32),
 							(player.location.0 as i32, player.location.1 as i32),
 						) {
-							trace!("Monster is adjacent to player. Skipping...");
+							// Check if monster can attack (2 second cooldown)
+							let mut mmo_map = mmo_map.lock().await;
+							let MapElement::Monster(mut monster) = mmo_map[monst_location]
+							else {
+								debug!("Invalid monster location for attack");
+								continue;
+							};
+
+							if monster.last_attack.elapsed() < Duration::from_secs(2) {
+								trace!("Monster can't attack yet (cooldown)");
+								continue;
+							}
+
+							trace!("Monster is adjacent to player. Attacking!");
+							// Apply damage to player
+							player.take_damage(1);
+							log::info!(
+								"Player {} took 1 damage. HP: {}/{}",
+								player.username,
+								player.hp,
+								player.max_hp
+							);
+
+							// Update monster's last attack time
+							monster.last_attack = Instant::now();
+							mmo_map[monst_location] = MapElement::Monster(monster);
+
+							// Send health update to client
+							let health_msg = UdpServerMsg::PlayerHealthUpdate {
+								hp: player.hp,
+							};
+							udp_socket
+								.send_msg_and_log_(health_msg, Some(player_udp))
+								.await;
 							continue;
 						}
 
@@ -106,10 +148,8 @@ pub fn game_loop_task(
 				};
 				udp_socket.send_msg_and_log_(ps, Some(player_udp)).await;
 
-				let rest_players_udp_msg_future = players
-					.values()
-					.filter(|&ps| ps.id != player.id)
-					.map(|ps| {
+				let rest_players_udp_msg_future =
+					players.values().filter(|&ps| ps.id != player_id).map(|ps| {
 						udp_socket.send_msg_and_log_(
 							UdpServerMsg::OtherPlayer {
 								username: ps.username.clone(),
