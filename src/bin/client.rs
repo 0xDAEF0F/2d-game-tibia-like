@@ -547,8 +547,8 @@ fn handle_end_move_object(
 	let (abs_x, abs_y) = (player_x + x as i32, player_y + y as i32);
 	let (x, y) = (abs_x as u32, abs_y as u32);
 
-	if let Some(moving_obj) = moving_object.take() {
-		if let Some(obj) = game_objects.0.remove(&moving_obj) {
+	if let Some(moving_obj) = moving_object.take()
+		&& let Some(obj) = game_objects.0.remove(&moving_obj) {
 			debug!(
 				"sending moving object from {:?} to {:?}",
 				moving_obj,
@@ -563,7 +563,6 @@ fn handle_end_move_object(
 			};
 			socket.send_msg_and_log(&msg, None);
 		}
-	}
 }
 
 async fn request_new_session_from_server(
@@ -742,11 +741,10 @@ fn handle_route(
 
 	// TODO: there might be other objects on the path that you can't move
 	// through
-	if let Some(obj) = game_objects.0.get(next_location) {
-		if obj.is_monster() {
+	if let Some(obj) = game_objects.0.get(next_location)
+		&& obj.is_monster() {
 			return;
 		}
-	}
 
 	let key = match (
 		next_location.0 as isize - player.curr_location.0 as isize,

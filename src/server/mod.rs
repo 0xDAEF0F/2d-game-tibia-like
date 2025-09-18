@@ -114,13 +114,12 @@ impl MmoMap {
 			];
 
 			for &neighbor in &neighbors {
-				if !visited.contains(&neighbor) {
-					if let Some(MapElement::Empty) = self.get(neighbor) {
+				if !visited.contains(&neighbor)
+					&& let Some(MapElement::Empty) = self.get(neighbor) {
 						queue.push_back(neighbor);
 						visited.insert(neighbor);
 						came_from.insert(neighbor, current);
 					}
-				}
 			}
 		}
 

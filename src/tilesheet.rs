@@ -61,7 +61,7 @@ pub struct MmoTilesheets<'tileset> {
 }
 
 impl MmoTilesheets<'_> {
-	pub fn new(map: &Map) -> MmoTilesheets {
+	pub fn new(map: &Map) -> MmoTilesheets<'_> {
 		let mut layers = HashMap::new();
 
 		for tileset in map.tilesets() {

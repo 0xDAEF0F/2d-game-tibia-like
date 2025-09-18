@@ -15,7 +15,7 @@ use uuid::Uuid;
 pub fn udp_recv_task(
 	udp_socket: Arc<UdpSocket>,
 	sc_tx: UnboundedSender<ServerChannel>,
-	address_mapping: Arc<Mutex<HashMap<SocketAddr, Uuid>>>,
+	_address_mapping: Arc<Mutex<HashMap<SocketAddr, Uuid>>>,
 	players: Arc<Mutex<HashMap<Uuid, Player>>>,
 ) -> JoinHandle<Result<()>> {
 	tokio::spawn(async move {

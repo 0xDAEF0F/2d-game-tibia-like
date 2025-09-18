@@ -44,7 +44,7 @@ pub fn game_loop_task(
 					.filter(|(_, obj)| obj.id() == 63 /* orc */)
 					.collect_vec();
 
-				for (monst_location @ (x, y), monster) in monsters {
+				for (monst_location @ (x, y), _monster) in monsters {
 					let min_x = (x as i32) - ((CAMERA_WIDTH / 2) as i32);
 					let max_x = (x as i32) + ((CAMERA_WIDTH / 2) as i32);
 					let min_y = (y as i32) - ((CAMERA_HEIGHT / 2) as i32);
@@ -108,7 +108,7 @@ pub fn game_loop_task(
 
 				let rest_players_udp_msg_future = players
 					.values()
-					.filter(|&ps| (ps.id != player.id))
+					.filter(|&ps| ps.id != player.id)
 					.map(|ps| {
 						udp_socket.send_msg_and_log_(
 							UdpServerMsg::OtherPlayer {
