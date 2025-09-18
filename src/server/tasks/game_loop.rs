@@ -112,12 +112,13 @@ pub fn game_loop_task(
 
 						let shortest_path =
 							mmo_map.shortest_path(monst_location, player.location);
-						let shortest_path = &shortest_path[1..&shortest_path.len() - 1];
 
-						if shortest_path.is_empty() {
-							trace!("No path to player");
+						if shortest_path.len() <= 2 {
+							trace!("No valid path to player or already adjacent");
 							continue;
 						}
+
+						let shortest_path = &shortest_path[1..shortest_path.len() - 1];
 
 						let MapElement::Monster(monster) = &mmo_map[monst_location]
 						else {
