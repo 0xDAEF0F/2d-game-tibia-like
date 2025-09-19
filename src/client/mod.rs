@@ -1,6 +1,10 @@
 mod egui;
 mod player;
 pub mod tasks;
+pub mod movement;
+pub mod rendering;
+pub mod pathfinding;
+pub mod object_interaction;
 
 use crate::{GameObjects, Location};
 pub use egui::*;
