@@ -50,8 +50,4 @@ impl Player {
 			level: 1,
 		}
 	}
-
-	pub fn take_damage(&mut self, amount: u32) {
-		self.hp = self.hp.saturating_sub(amount);
-	}
 }

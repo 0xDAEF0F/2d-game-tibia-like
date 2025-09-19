@@ -19,6 +19,9 @@ pub enum UdpServerMsg {
 	PlayerHealthUpdate {
 		hp: u32,
 	},
+	PlayerDeath {
+		message: String,
+	},
 }
 
 // CLIENT -> SERVER

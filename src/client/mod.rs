@@ -33,4 +33,7 @@ pub enum Cc {
 	PlayerHealthUpdate {
 		hp: u32,
 	},
+	PlayerDeath {
+		message: String,
+	},
 }

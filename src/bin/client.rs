@@ -216,6 +216,11 @@ async fn draw(
 					player.hp = hp;
 					debug!("Health updated: {}/{}", hp, player.max_hp);
 				}
+				Cc::PlayerDeath { message } => {
+					error!("Player died: {}", message);
+					// Exit the game when player dies - no reconnection
+					std::process::exit(0);
+				}
 			}
 		}
 

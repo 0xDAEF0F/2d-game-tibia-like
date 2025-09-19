@@ -3,15 +3,22 @@ use crate::{
 	GameObjects,
 	constants::*,
 	sendable::SendableAsync,
-	server::{MapElement, MmoMap},
+	server::{MapElement, MmoMap, Sc, ServerChannel},
 	udp::*,
 };
 use anyhow::Result;
 use futures::future::join_all;
 use itertools::Itertools;
 use log::{debug, error, trace};
-use std::{sync::Arc, time::{Duration, Instant}};
-use tokio::{net::UdpSocket, sync::Mutex, task::JoinHandle};
+use std::{
+	sync::Arc,
+	time::{Duration, Instant},
+};
+use tokio::{
+	net::UdpSocket,
+	sync::{Mutex, mpsc::UnboundedSender},
+	task::JoinHandle,
+};
 use uuid::Uuid;
 
 type Udp = Arc<UdpSocket>;
@@ -23,6 +30,7 @@ pub fn game_loop_task(
 	players: Players,
 	game_objects: Objects,
 	mmo_map: Arc<Mutex<MmoMap>>,
+	sc_tx: UnboundedSender<ServerChannel>,
 ) -> JoinHandle<Result<()>> {
 	tokio::spawn(async move {
 		let mut interval = tokio::time::interval(Duration::from_millis(SERVER_TICK_RATE));
@@ -73,7 +81,8 @@ pub fn game_loop_task(
 						) {
 							// Check if monster can attack (2 second cooldown)
 							let mut mmo_map = mmo_map.lock().await;
-							let MapElement::Monster(mut monster) = mmo_map[monst_location]
+							let MapElement::Monster(mut monster) =
+								mmo_map[monst_location]
 							else {
 								debug!("Invalid monster location for attack");
 								continue;
@@ -86,22 +95,41 @@ pub fn game_loop_task(
 
 							trace!("Monster is adjacent to player. Attacking!");
 							// Apply damage to player
-							player.take_damage(1);
+							player.hp = player.hp.saturating_sub(40);
 							log::info!(
-								"Player {} took 1 damage. HP: {}/{}",
+								"Player {} took 40 damage. HP: {}/{}",
 								player.username,
 								player.hp,
 								player.max_hp
 							);
+
+							if player.hp == 0 {
+								log::info!("Player {} has died. Disconnecting.", player.username);
+
+								// Send death message to client via UDP
+								let death_msg = UdpServerMsg::PlayerDeath {
+									message: "You have been slain!".to_string(),
+								};
+								udp_socket
+									.send_msg_and_log_(death_msg, Some(player_udp))
+									.await;
+
+								// Send disconnect message through server channel to clean up player
+								let disconnect = ServerChannel {
+									id: player_id,
+									msg: Sc::Disconnect,
+								};
+								let _ = sc_tx.send(disconnect);
+								continue;
+							}
 
 							// Update monster's last attack time
 							monster.last_attack = Instant::now();
 							mmo_map[monst_location] = MapElement::Monster(monster);
 
 							// Send health update to client
-							let health_msg = UdpServerMsg::PlayerHealthUpdate {
-								hp: player.hp,
-							};
+							let health_msg =
+								UdpServerMsg::PlayerHealthUpdate { hp: player.hp };
 							udp_socket
 								.send_msg_and_log_(health_msg, Some(player_udp))
 								.await;

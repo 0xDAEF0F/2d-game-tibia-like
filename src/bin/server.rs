@@ -57,6 +57,7 @@ async fn main() -> Result<()> {
 		players.clone(),
 		game_objects.clone(),
 		mmo_map.clone(),
+		sc_tx.clone(),
 	);
 
 	// Receives UDP msgs from clients.

@@ -12,8 +12,8 @@ use std::{
 use uuid::Uuid;
 
 pub struct ServerChannel {
-	id: Uuid,
-	msg: Sc,
+	pub id: Uuid,
+	pub msg: Sc,
 }
 
 pub enum Sc {

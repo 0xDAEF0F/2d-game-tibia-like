@@ -61,6 +61,13 @@ pub fn udp_recv_task(
 						};
 						cc_tx.send(cc)?;
 					}
+					UdpServerMsg::PlayerDeath { message } => {
+						let cc = ClientChannel {
+							id: user_id,
+							msg: Cc::PlayerDeath { message },
+						};
+						cc_tx.send(cc)?;
+					}
 				};
 			}
 		}
