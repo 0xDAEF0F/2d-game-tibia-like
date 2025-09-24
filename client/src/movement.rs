@@ -1,7 +1,7 @@
 use crate::{OtherPlayers, Player};
 use egui_macroquad::macroquad::prelude::*;
-use log::debug;
 use shared::{Direction, constants::BASE_MOVE_DELAY};
+use thin_logger::log::debug;
 
 pub fn send_pos_to_server(player: &mut Player, socket: &tokio::net::UdpSocket) {
    use shared::network::{sendable::SendableSync, udp::UdpClientMsg};

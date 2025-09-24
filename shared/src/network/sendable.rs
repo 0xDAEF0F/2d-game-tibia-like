@@ -2,6 +2,7 @@ use anyhow::Result;
 use async_trait::async_trait;
 use serde::Serialize;
 use std::net::SocketAddr;
+use thin_logger::log::{error, trace};
 use tokio::net::UdpSocket;
 
 pub trait SendableSync {
@@ -25,10 +26,10 @@ impl SendableSync for UdpSocket {
       let result = self.send_msg(msg, to);
       match result {
          Ok(bytes_sent) => {
-            log::trace!("Sent {bytes_sent} through UDP.",);
+            trace!("Sent {bytes_sent} through UDP.",);
          }
          Err(err) => {
-            log::error!("Failed to send UDP message: {:?}", err);
+            error!("Failed to send UDP message: {:?}", err);
          }
       }
    }
@@ -67,10 +68,10 @@ impl SendableAsync for UdpSocket {
    {
       match self.send_msg_(msg, to).await {
          Ok(size) => {
-            log::trace!("Sent {size} bytes");
+            trace!("Sent {size} bytes");
          }
          Err(e) => {
-            log::error!("Failed to send UDP message: {:?}", e);
+            error!("Failed to send UDP message: {:?}", e);
          }
       }
    }

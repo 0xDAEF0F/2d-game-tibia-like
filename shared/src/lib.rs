@@ -1,10 +1,8 @@
 pub mod constants;
 pub mod game_objects;
-pub mod logger;
 pub mod network;
 
 pub use game_objects::*;
-pub use logger::*;
 pub use network::*;
 use serde::{Deserialize, Serialize};
 use std::cmp::Ordering;

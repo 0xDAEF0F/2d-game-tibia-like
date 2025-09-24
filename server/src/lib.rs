@@ -1,7 +1,6 @@
 pub mod player;
 pub mod tasks;
 
-use log::debug;
 pub use player::*;
 use shared::{GameObject, GameObjects, Location, constants::*};
 use std::{
@@ -9,6 +8,7 @@ use std::{
    ops::{Index, IndexMut},
    time::Instant,
 };
+use thin_logger::log::debug;
 use uuid::Uuid;
 
 pub struct ServerChannel {

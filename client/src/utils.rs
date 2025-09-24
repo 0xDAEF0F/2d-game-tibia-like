@@ -1,10 +1,10 @@
 use egui_macroquad::macroquad::prelude::*;
-use log::trace;
 use shared::{Location, constants::*, network::tcp::TcpClientMsg};
 use std::{
    collections::HashMap,
    sync::{Arc, Mutex},
 };
+use thin_logger::log::trace;
 use tokio::net::tcp::OwnedWriteHalf;
 
 pub fn draw_delimitator_lines() {

@@ -1,11 +1,11 @@
 use anyhow::Result;
-use log::info;
 use server::{
    MmoMap, Player, ServerChannel,
    tasks::{game_loop_task, sc_rx_task, tcp_listener_task, udp_recv_task},
 };
-use shared::{GameObjects, MmoLogger, constants::*};
+use shared::{GameObjects, constants::*};
 use std::{collections::HashMap, net::SocketAddr, sync::Arc};
+use thin_logger::log::{LevelFilter, info};
 use tokio::{
    net::{TcpListener, UdpSocket},
    sync::{Mutex, mpsc},
@@ -14,7 +14,7 @@ use uuid::Uuid;
 
 #[tokio::main]
 async fn main() -> Result<()> {
-   MmoLogger::init("debug");
+   thin_logger::build(LevelFilter::Info.into()).init();
 
    let udp_socket = Arc::new(UdpSocket::bind(SERVER_UDP_ADDR).await?);
    info!("Server listening on UDP: {}", SERVER_UDP_ADDR);
@@ -54,7 +54,6 @@ async fn main() -> Result<()> {
       players.clone(),
       game_objects.clone(),
       mmo_map.clone(),
-      sc_tx.clone(),
    );
 
    // Receives UDP msgs from clients.

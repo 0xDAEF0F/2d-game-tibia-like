@@ -1,35 +1,27 @@
-use super::Players;
-use crate::{MapElement, MmoMap, ServerChannel};
+use crate::{MapElement, MmoMap, Player};
 use anyhow::Result;
 use futures::future::join_all;
 use itertools::Itertools;
-use log::{debug, error, trace};
 use shared::{
    GameObjects,
    constants::*,
    network::{sendable::SendableAsync, udp::*},
 };
 use std::{
+   collections::HashMap,
    sync::Arc,
    time::{Duration, Instant},
 };
-use tokio::{
-   net::UdpSocket,
-   sync::{Mutex, mpsc::UnboundedSender},
-   task::JoinHandle,
-};
+use thin_logger::log::{debug, error, info, trace};
+use tokio::{net::UdpSocket, sync::Mutex, task::JoinHandle};
 use uuid::Uuid;
-
-type Udp = Arc<UdpSocket>;
-type Objects = Arc<Mutex<GameObjects>>;
 
 /// This task should never finish. If it does, it must be an error.
 pub fn game_loop_task(
-   udp_socket: Udp,
-   players: Players,
-   game_objects: Objects,
+   udp_socket: Arc<UdpSocket>,
+   players: Arc<Mutex<HashMap<Uuid, Player>>>,
+   game_objects: Arc<Mutex<GameObjects>>,
    mmo_map: Arc<Mutex<MmoMap>>,
-   _sc_tx: UnboundedSender<ServerChannel>,
 ) -> JoinHandle<Result<()>> {
    tokio::spawn(async move {
       let mut interval = tokio::time::interval(Duration::from_millis(SERVER_TICK_RATE));
@@ -39,7 +31,7 @@ pub fn game_loop_task(
          let mut players = players.lock().await;
          let mut game_objects = game_objects.lock().await;
 
-         // Collect player IDs to process
+         // Collect player IDs to process and loop against every one of them
          let player_ids: Vec<Uuid> = players.keys().copied().collect();
 
          for player_id in player_ids {
@@ -70,7 +62,6 @@ pub fn game_loop_task(
                {
                   trace!("Monster can see player {}", player.username);
 
-                  // TODO: move elsewhere
                   fn is_adjacent(a: (i32, i32), b: (i32, i32)) -> bool {
                      (a.0 - b.0).abs() <= 1 && (a.1 - b.1).abs() <= 1
                   }
@@ -93,15 +84,13 @@ pub fn game_loop_task(
                      trace!("Monster is adjacent to player. Attacking!");
                      // Apply damage to player
                      player.hp = player.hp.saturating_sub(40);
-                     log::info!(
+                     info!(
                         "Player {} took 40 damage. HP: {}/{}",
-                        player.username,
-                        player.hp,
-                        player.max_hp
+                        player.username, player.hp, player.max_hp
                      );
 
                      if player.hp == 0 {
-                        log::info!("Player {} has died.", player.username);
+                        info!("Player {} has died.", player.username);
 
                         // Send death message to client via UDP
                         let death_msg = UdpServerMsg::PlayerDeath {
@@ -144,7 +133,7 @@ pub fn game_loop_task(
                   };
 
                   if monster.last_movement.elapsed() < Duration::from_millis(200) {
-                     log::trace!("Monster cant move yet (cooldown)");
+                     trace!("Monster cant move yet (cooldown)");
                      continue;
                   }
 

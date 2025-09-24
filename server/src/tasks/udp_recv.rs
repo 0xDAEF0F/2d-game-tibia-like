@@ -1,8 +1,8 @@
 use crate::{Player, Sc, ServerChannel};
 use anyhow::Result;
-use log::{debug, error};
 use shared::network::udp::UdpClientMsg;
 use std::{collections::HashMap, net::SocketAddr, sync::Arc};
+use thin_logger::log::{debug, error};
 use tokio::{
    net::UdpSocket,
    sync::{Mutex, mpsc::UnboundedSender},

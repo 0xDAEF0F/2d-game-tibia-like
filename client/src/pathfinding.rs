@@ -5,6 +5,7 @@ use shared::{
    constants::{CAMERA_HEIGHT, CAMERA_WIDTH, MAP_HEIGHT, MAP_WIDTH, TILE_HEIGHT, TILE_WIDTH},
 };
 use std::collections::{HashMap, HashSet, VecDeque};
+use thin_logger::log::info;
 
 type QuickMap = [[bool; MAP_WIDTH as usize]; MAP_HEIGHT as usize];
 
@@ -118,7 +119,7 @@ pub fn program_route_if_user_clicks_map(
    let map = construct_map_from_unwalkable_objects(game_objects, other_players);
    let path = bfs_find_path(&map, player.curr_location, (x, y));
 
-   log::info!("path: {:?}", path);
+   info!("path: {:?}", path);
 
    if path.is_empty() {
       return;

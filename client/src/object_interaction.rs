@@ -1,11 +1,11 @@
 use crate::Player;
 use egui_macroquad::macroquad::prelude::*;
-use log::debug;
 use shared::{
    GameObjects, Location,
    constants::{CAMERA_HEIGHT, CAMERA_WIDTH, TILE_HEIGHT, TILE_WIDTH},
    network::{sendable::SendableSync, udp::UdpClientMsg},
 };
+use thin_logger::log::debug;
 use tokio::net::UdpSocket;
 
 pub fn handle_start_move_object(

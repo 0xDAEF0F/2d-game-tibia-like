@@ -1,7 +1,7 @@
 use egui_macroquad::macroquad::prelude::*;
-use log::info;
 use shared::Location;
 use std::{collections::HashMap, sync::Arc};
+use thin_logger::log::{error, info};
 use tiled::{Map, Tileset};
 
 /// A container for a tileset and the texture it references.
@@ -77,7 +77,7 @@ impl MmoTilesheets<'_> {
    pub fn render_tile_at(&self, tileset_name: &str, tile_id: u32, location: Location) {
       let (x_coordinate, y_coordinate) = location;
       let Some((tileset, texture)) = self.layers.get(tileset_name) else {
-         log::error!("tileset not found: {:?}", tileset_name);
+         error!("tileset not found: {:?}", tileset_name);
          return;
       };
       let (tile_x, tile_y, width, height) = Self::tile_rect(tileset, tile_id);

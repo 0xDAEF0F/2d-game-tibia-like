@@ -5,6 +5,7 @@ use shared::{
    constants::{CAMERA_HEIGHT, CAMERA_WIDTH, TILE_HEIGHT, TILE_WIDTH},
    game_objects::ORC_MAX_HP,
 };
+use thin_logger::log::trace;
 use tiled::Map;
 
 pub fn render_view(player: &Player, map: &Map, tilesheets: &MmoTilesheets) {
@@ -53,7 +54,7 @@ pub fn render_objects(player: &Player, tilesheets: &MmoTilesheets, game_objects:
          let game_object = &game_objects.0[&(x, y)];
 
          if let GameObject::Orc { hp, direction, .. } = game_object {
-            log::trace!("Orc direction is: {direction:?}",);
+            trace!("Orc direction is: {direction:?}",);
 
             render_entity_name("Orc", (j as f32 * TILE_WIDTH, i as f32 * TILE_HEIGHT));
 

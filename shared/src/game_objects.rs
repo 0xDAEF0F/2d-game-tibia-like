@@ -2,6 +2,7 @@ use crate::{Direction, Location, calculate_new_direction, constants::*};
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use thin_logger::log::trace;
 use tiled::Loader;
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
@@ -64,7 +65,7 @@ impl GameObjects {
       let mut object = self.0.remove(&from)?;
       if object.is_monster() {
          let direction = calculate_new_direction(from, to);
-         log::trace!("changing direction of monster to: {:?}", direction);
+         trace!("changing direction of monster to: {:?}", direction);
          object.change_direction(direction);
       }
       self.0.insert(to, object);

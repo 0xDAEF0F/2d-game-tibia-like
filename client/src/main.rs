@@ -10,7 +10,6 @@ use client::{
    utils::{FpsLogger, PingMonitor},
 };
 use egui_macroquad::macroquad;
-use log::{debug, error, info};
 use macroquad::{Window, prelude::*};
 use shared::{
    constants::*,
@@ -23,6 +22,7 @@ use std::{
    sync::{Arc, Mutex},
    time::Duration,
 };
+use thin_logger::log::{LevelFilter, debug, error, info};
 use tiled::Loader;
 use tokio::{
    io::{AsyncBufReadExt, AsyncReadExt, AsyncWriteExt, BufReader, stdin},
@@ -32,7 +32,7 @@ use tokio::{
 
 #[tokio::main]
 async fn main() -> Result<()> {
-   MmoLogger::init("debug");
+   thin_logger::build(LevelFilter::Info.into()).init();
 
    let socket = UdpSocket::bind("0.0.0.0:0").await?;
    let socket = Arc::new(socket);

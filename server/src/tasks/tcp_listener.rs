@@ -1,13 +1,13 @@
 use super::Players;
 use crate::{Player, Sc, ServerChannel};
 use anyhow::{Context, Result, bail};
-use log::{debug, error, info, trace, warn};
 use shared::{
    Direction, InitPlayer, Location,
    constants::{MAP_HEIGHT, MAP_WIDTH},
    network::tcp::*,
 };
 use std::{collections::HashMap, net::SocketAddr, sync::Arc};
+use thin_logger::log::{debug, error, info, trace, warn};
 use tokio::{
    io::{AsyncReadExt, AsyncWriteExt},
    net::{TcpListener, TcpStream, tcp::OwnedReadHalf},
@@ -156,7 +156,7 @@ async fn authenticate_tcp_client(tcp_stream: &mut TcpStream, players: Players) -
       _ => bail!("invalid client message"),
    };
 
-   println!("submitted username is: {}", username);
+   info!("submitted username is: {}", username);
 
    let is_username_taken = (players.lock().await)
       .values()

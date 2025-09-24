@@ -1,7 +1,7 @@
 use crate::{Cc, ClientChannel};
 use anyhow::Result;
-use log::{debug, info};
 use shared::network::tcp::TcpServerMsg;
+use thin_logger::log::{debug, info};
 use tokio::{
    io::AsyncReadExt, net::tcp::OwnedReadHalf, sync::mpsc::UnboundedSender, task::JoinHandle,
 };

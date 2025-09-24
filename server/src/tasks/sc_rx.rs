@@ -1,12 +1,12 @@
 use crate::{Player, Sc, ServerChannel};
 use anyhow::Result;
 use futures::future::join_all;
-use log::{debug, error, info, trace};
 use shared::{
    Direction, GameObjects,
    network::{tcp::*, udp::*},
 };
 use std::{collections::HashMap, net::SocketAddr, sync::Arc};
+use thin_logger::log::{debug, error, info, trace};
 use tokio::{
    io::AsyncWriteExt,
    net::UdpSocket,
@@ -60,7 +60,7 @@ pub fn sc_rx_task(
                   player.username, location
                );
 
-               log::debug!("player direction is: {:?}", player.direction);
+               debug!("player direction is: {:?}", player.direction);
 
                // TODO: check if location is valid
                player.client_request_id = client_request_id;

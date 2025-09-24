@@ -55,12 +55,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "android-tzdata"
-version = "0.1.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e999941b234f3131b00bc13c22d06e8c5ff726d1b6318ac7eb276997bbb4fef0"
-
-[[package]]
 name = "android_system_properties"
 version = "0.1.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -265,16 +259,15 @@ checksum = "baf1de4339761588bc0619e3cbc0120ee582ebb74b53b4efbf79117bd2da40fd"
 
 [[package]]
 name = "chrono"
-version = "0.4.39"
+version = "0.4.42"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7e36cc9d416881d2e24f9a963be5fb1cd90966419ac844274161d10488b3e825"
+checksum = "145052bdd345b87320e369255277e3fb5152762ad123a901ef5c262dd38fe8d2"
 dependencies = [
- "android-tzdata",
  "iana-time-zone",
  "js-sys",
  "num-traits",
  "wasm-bindgen",
- "windows-targets",
+ "windows-link",
 ]
 
 [[package]]
@@ -286,12 +279,11 @@ dependencies = [
  "bincode",
  "chrono",
  "egui-macroquad",
- "env_logger",
  "futures",
  "itertools",
- "log",
  "serde",
  "shared",
+ "thin-logger",
  "tiled",
  "tokio",
  "tokio-stream",
@@ -320,6 +312,15 @@ name = "colorchoice"
 version = "1.0.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5b63caa9aa9397e2d9480a9b13673856c78d8ac123288526c37d7839f2a86990"
+
+[[package]]
+name = "colored"
+version = "3.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "fde0e0ec90c9dfb3b4b1a0891a7dcd0e2bffde2f7efed5fe7c9bb00e5bfb915e"
+dependencies = [
+ "windows-sys 0.59.0",
+]
 
 [[package]]
 name = "copypasta"
@@ -451,14 +452,14 @@ dependencies = [
 
 [[package]]
 name = "env_logger"
-version = "0.11.6"
+version = "0.11.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "dcaee3d8e3cfc3fd92428d477bc97fc29ec8716d180c0d74c643bb26166660e0"
+checksum = "13c863f0904021b108aa8b2f55046443e6b1ebde8fd4a15c399893aae4fa069f"
 dependencies = [
  "anstream",
  "anstyle",
  "env_filter",
- "humantime",
+ "jiff",
  "log",
 ]
 
@@ -656,12 +657,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "62adaabb884c94955b19907d60019f4e145d091c75345379e70d1ee696f7854f"
 
 [[package]]
-name = "humantime"
-version = "2.1.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9a3a5bfb195931eeb336b2a7b4d761daec841b97f947d34394601737a7bba5e4"
-
-[[package]]
 name = "iana-time-zone"
 version = "0.1.61"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -710,6 +705,30 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2b192c782037fadd9cfa75548310488aabdbf3d2da73885b31bd0abd03351285"
 dependencies = [
  "either",
+]
+
+[[package]]
+name = "jiff"
+version = "0.2.15"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "be1f93b8b1eb69c77f24bbb0afdf66f54b632ee39af40ca21c4365a1d7347e49"
+dependencies = [
+ "jiff-static",
+ "log",
+ "portable-atomic",
+ "portable-atomic-util",
+ "serde",
+]
+
+[[package]]
+name = "jiff-static"
+version = "0.2.15"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "03343451ff899767262ec32146f6d559dd759fdadf42ff0e227c7c48f72594b4"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn",
 ]
 
 [[package]]
@@ -782,9 +801,9 @@ dependencies = [
 
 [[package]]
 name = "log"
-version = "0.4.25"
+version = "0.4.28"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "04cbf5b083de1c7e0222a7a51dbfdba1cbe1c6ab0b15e29fff3f6c077fd9cd9f"
+checksum = "34080505efa8e45a4b816c349525ebe327ceaa8559756f0356cba97ef3bf7432"
 
 [[package]]
 name = "macroquad"
@@ -1031,6 +1050,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "portable-atomic"
+version = "1.11.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f84267b20a16ea918e43c6a88433c2d54fa145c92a811b5b047ccbe153674483"
+
+[[package]]
+name = "portable-atomic-util"
+version = "0.2.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d8a2f0d8d040d7848a709caf78912debcc3f33ee4b3cac47d73d1e1069e83507"
+dependencies = [
+ "portable-atomic",
+]
+
+[[package]]
 name = "ppv-lite86"
 version = "0.2.20"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1252,13 +1286,12 @@ dependencies = [
  "async-trait",
  "bincode",
  "chrono",
- "env_logger",
  "futures",
  "itertools",
- "log",
  "rand 0.8.5",
  "serde",
  "shared",
+ "thin-logger",
  "tokio",
  "tokio-stream",
  "tokio-util",
@@ -1273,11 +1306,10 @@ dependencies = [
  "async-trait",
  "bincode",
  "chrono",
- "env_logger",
  "futures",
  "itertools",
- "log",
  "serde",
+ "thin-logger",
  "tiled",
  "tokio",
  "tokio-stream",
@@ -1386,6 +1418,18 @@ dependencies = [
  "proc-macro2",
  "quote",
  "unicode-ident",
+]
+
+[[package]]
+name = "thin-logger"
+version = "0.1.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "56ef3097323b0c784521936b008ee86903f56dc80a406f10ca862aeebe2bbbed"
+dependencies = [
+ "chrono",
+ "colored",
+ "env_logger",
+ "log",
 ]
 
 [[package]]
@@ -1719,6 +1763,12 @@ checksum = "33ab640c8d7e35bf8ba19b884ba838ceb4fba93a4e8c65a9059d08afcfc683d9"
 dependencies = [
  "windows-targets",
 ]
+
+[[package]]
+name = "windows-link"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "45e46c0661abb7180e7b9c281db115305d49ca1709ab8242adf09666d2173c65"
 
 [[package]]
 name = "windows-sys"
