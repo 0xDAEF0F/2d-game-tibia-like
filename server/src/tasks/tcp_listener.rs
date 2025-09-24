@@ -1,11 +1,7 @@
 use super::Players;
-use crate::{Player, Sc, ServerChannel};
+use crate::{Player, Sc, ServerChannel, spawn_manager::generate_spawn_location};
 use anyhow::{Context, Result, bail};
-use shared::{
-   Direction, InitPlayer, Location,
-   constants::{MAP_HEIGHT, MAP_WIDTH},
-   network::tcp::*,
-};
+use shared::{Direction, GameObjects, InitPlayer, network::tcp::*};
 use std::{collections::HashMap, net::SocketAddr, sync::Arc};
 use thin_logger::log::{debug, error, info, trace, warn};
 use tokio::{
@@ -22,6 +18,7 @@ pub fn tcp_listener_task(
    players: Players,
    address_mapping: Arc<Mutex<HashMap<SocketAddr, Uuid>>>,
    sc_tx: UnboundedSender<ServerChannel>,
+   game_objects: Arc<Mutex<GameObjects>>,
 ) -> JoinHandle<Result<()>> {
    tokio::spawn(async move {
       let mut iter = TcpListenerStream::new(tcp_listener);
@@ -37,6 +34,7 @@ pub fn tcp_listener_task(
             players.clone(),
             address_mapping.clone(),
             sc_tx.clone(),
+            game_objects.clone(),
          );
       }
 
@@ -49,6 +47,7 @@ fn handle_tcp_stream(
    players: Players,
    address_mapping: Arc<Mutex<HashMap<SocketAddr, Uuid>>>,
    sc_tx: UnboundedSender<ServerChannel>,
+   game_objects: Arc<Mutex<GameObjects>>,
 ) {
    // this task does not block the server and it can continue
    // accepting new connections.
@@ -67,24 +66,10 @@ fn handle_tcp_stream(
       if let AuthType::Connection(username) = auth_type {
          let (tcp_read, mut tcp_write) = stream.into_split();
 
-         async fn generate_spawn_location(players: Arc<Mutex<HashMap<Uuid, Player>>>) -> Location {
-            let players = players.lock().await;
-            let taken_locations = players.values().map(|p| p.location).collect::<Vec<_>>();
-            use rand::Rng;
-            let mut rng = rand::thread_rng();
-            loop {
-               let x = rng.gen_range(0..MAP_WIDTH - 1);
-               let y = rng.gen_range(0..MAP_HEIGHT - 1);
-               if !taken_locations.contains(&(x, y)) {
-                  return (x, y);
-               }
-            }
-         }
-
          let init_player = InitPlayer {
             id: Uuid::new_v4(),
             username: username.clone(),
-            location: generate_spawn_location(players.clone()).await,
+            location: generate_spawn_location(players.clone(), game_objects.clone()).await,
             hp: 100,
             max_hp: 100,
             level: 1,
@@ -97,14 +82,47 @@ fn handle_tcp_stream(
             return;
          };
 
-         let new_player = Player::new(init_player.id, username, user_address, tcp_write);
+         let new_player = Player::new(
+            init_player.id,
+            username.clone(),
+            user_address,
+            tcp_write,
+            init_player.location,
+            init_player.hp,
+            init_player.max_hp,
+            init_player.level,
+            init_player.direction,
+         );
+
+         info!(
+            "New player {} spawning at location {:?} with id {}",
+            username, init_player.location, init_player.id
+         );
+
+         // Verify the player struct has the correct location
+         debug!(
+            "Player struct created with location: {:?}",
+            new_player.location
+         );
 
          // storage
          address_mapping
             .lock()
             .await
             .insert(user_address, init_player.id);
-         players.lock().await.insert(init_player.id, new_player);
+
+         let mut players_lock = players.lock().await;
+         players_lock.insert(init_player.id, new_player);
+         debug!(
+            "Player inserted into storage. Total players: {}",
+            players_lock.len()
+         );
+
+         // Log all player locations for debugging
+         for (_id, p) in players_lock.iter() {
+            debug!("Player {} at location {:?}", p.username, p.location);
+         }
+         drop(players_lock);
 
          // set up tcp reader
          setup_tcp_reader(tcp_read, sc_tx.clone(), address_mapping.clone());

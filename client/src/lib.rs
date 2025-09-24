@@ -1,3 +1,4 @@
+pub mod draw;
 pub mod egui;
 pub mod movement;
 pub mod object_interaction;

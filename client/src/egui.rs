@@ -2,6 +2,7 @@ mod chat_window;
 
 use chat_window::create_chat_window;
 use chrono::{DateTime, Local};
+use shared::network::tcp::TcpClientMsg;
 use std::{
    fmt,
    sync::{Arc, Mutex},
@@ -69,7 +70,7 @@ fn create_death_dialog(mmo_ctx: &mut MmoContext, ctx: &egui_macroquad::egui::Con
             ui.horizontal(|ui| {
                if ui.button("Respawn").clicked() {
                   // Send respawn request
-                  let respawn_msg = shared::network::tcp::TcpClientMsg::Respawn(mmo_ctx.player_id);
+                  let respawn_msg = TcpClientMsg::Respawn(mmo_ctx.player_id);
                   if let Ok(serialized) = bincode::serialize(&respawn_msg) {
                      _ = mmo_ctx
                         .server_tcp_write_stream
@@ -82,7 +83,7 @@ fn create_death_dialog(mmo_ctx: &mut MmoContext, ctx: &egui_macroquad::egui::Con
 
                if ui.button("Exit").clicked() {
                   // Send disconnect and exit
-                  let disconnect_msg = shared::network::tcp::TcpClientMsg::Disconnect;
+                  let disconnect_msg = TcpClientMsg::Disconnect;
                   if let Ok(serialized) = bincode::serialize(&disconnect_msg) {
                      _ = mmo_ctx
                         .server_tcp_write_stream

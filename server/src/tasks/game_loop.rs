@@ -69,6 +69,11 @@ pub fn game_loop_task(
                      (x as i32, y as i32),
                      (player.location.0 as i32, player.location.1 as i32),
                   ) {
+                     // Skip if player is already dead
+                     if player.is_dead {
+                        continue;
+                     }
+
                      // Check if monster can attack (2 second cooldown)
                      let mut mmo_map = mmo_map.lock().await;
                      let MapElement::Monster(mut monster) = mmo_map[monst_location] else {
@@ -89,8 +94,9 @@ pub fn game_loop_task(
                         player.username, player.hp, player.max_hp
                      );
 
-                     if player.hp == 0 {
+                     if player.hp == 0 && !player.is_dead {
                         info!("Player {} has died.", player.username);
+                        player.is_dead = true;
 
                         // Send death message to client via UDP
                         let death_msg = UdpServerMsg::PlayerDeath {

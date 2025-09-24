@@ -1,4 +1,5 @@
 pub mod player;
+pub mod spawn_manager;
 pub mod tasks;
 
 pub use player::*;

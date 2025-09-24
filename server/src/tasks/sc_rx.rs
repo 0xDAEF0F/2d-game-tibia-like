@@ -1,4 +1,4 @@
-use crate::{Player, Sc, ServerChannel};
+use crate::{Player, Sc, ServerChannel, spawn_manager::generate_spawn_location};
 use anyhow::Result;
 use futures::future::join_all;
 use shared::{
@@ -62,7 +62,6 @@ pub fn sc_rx_task(
 
                debug!("player direction is: {:?}", player.direction);
 
-               // TODO: check if location is valid
                player.client_request_id = client_request_id;
                player.location = location;
             }
@@ -132,11 +131,20 @@ pub fn sc_rx_task(
             Sc::Respawn => {
                info!("Player {} is respawning", player_id);
 
-               // Reset player health and position
+               // Use the shared spawn location generation logic
+               let spawn_location =
+                  generate_spawn_location(players.clone(), game_objects.clone()).await;
+
                let mut players = players.lock().await;
                if let Some(player) = players.get_mut(&player_id) {
+                  info!(
+                     "Respawning player {} at {:?}",
+                     player.username, spawn_location
+                  );
+
                   player.hp = player.max_hp;
-                  player.location = (0, 0); // Spawn at default location
+                  player.location = spawn_location;
+                  player.is_dead = false;
 
                   // Send respawn confirmation via TCP
                   let respawn_ok = TcpServerMsg::RespawnOk;
@@ -160,8 +168,8 @@ pub fn sc_rx_task(
                   }
 
                   info!(
-                     "Player {} respawned at (0, 0) with full health",
-                     player.username
+                     "Player {} respawned at {:?} with full health",
+                     player.username, spawn_location
                   );
                } else {
                   error!("Player {} not found when attempting to respawn", player_id);

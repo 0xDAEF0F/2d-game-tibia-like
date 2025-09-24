@@ -46,6 +46,7 @@ async fn main() -> Result<()> {
       players.clone(),
       address_mapping.clone(),
       sc_tx.clone(),
+      game_objects.clone(),
    );
 
    // Game loop task
