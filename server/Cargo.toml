@@ -1,0 +1,29 @@
+[package]
+name = "server"
+version = "0.1.0"
+edition = "2024"
+
+[lib]
+name = "server"
+path = "src/lib.rs"
+
+[[bin]]
+name = "server"
+path = "src/main.rs"
+
+[dependencies]
+shared = { path = "../shared" }
+anyhow = { workspace = true }
+bincode = { workspace = true }
+serde = { workspace = true }
+tokio = { workspace = true }
+itertools = { workspace = true }
+env_logger = { workspace = true }
+log = { workspace = true }
+chrono = { workspace = true }
+tokio-stream = { workspace = true }
+uuid = { workspace = true }
+futures = { workspace = true }
+tokio-util = { workspace = true }
+async-trait = { workspace = true }
+rand = { workspace = true }

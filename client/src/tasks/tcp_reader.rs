@@ -1,0 +1,61 @@
+use crate::{Cc, ClientChannel};
+use anyhow::Result;
+use log::{debug, info};
+use shared::network::tcp::TcpServerMsg;
+use tokio::{
+   io::AsyncReadExt, net::tcp::OwnedReadHalf, sync::mpsc::UnboundedSender, task::JoinHandle,
+};
+use uuid::Uuid;
+
+pub fn tcp_reader_task(
+   mut tcp_read: OwnedReadHalf,
+   cc_tx: UnboundedSender<ClientChannel>,
+   user_id: Uuid,
+) -> JoinHandle<Result<()>> {
+   tokio::spawn(async move {
+      let mut buf = [0; 1024];
+      loop {
+         match tcp_read.read(&mut buf).await {
+            Ok(size) if size > 0 => {
+               debug!("received msg from server through the tcp reader");
+
+               let Ok(server_msg) = bincode::deserialize::<TcpServerMsg>(&buf[0..size]) else {
+                  debug!("could not deserialize message from server in tcp listener");
+                  continue;
+               };
+
+               let cc = match server_msg {
+                  TcpServerMsg::Pong(ping_id) => Cc::Pong(ping_id),
+                  TcpServerMsg::ChatMsg { username, msg } => Cc::ChatMsg {
+                     from: username,
+                     msg,
+                  },
+                  TcpServerMsg::ReconnectOk => Cc::ReconnectOk,
+                  TcpServerMsg::RespawnOk => {
+                     // Server should send the new health and location via UDP
+                     // For now, just reset to default values
+                     Cc::RespawnOk {
+                        hp: 100,
+                        location: (0, 0),
+                     }
+                  }
+                  TcpServerMsg::InitOk(_) => unreachable!(),
+                  TcpServerMsg::InitErr(_) => unreachable!(),
+               };
+
+               let msg = ClientChannel {
+                  id: user_id,
+                  msg: cc,
+               };
+
+               cc_tx.send(msg).unwrap();
+            }
+            _ => {
+               info!("exiting tcp reader task.");
+               break;
+            }
+         }
+      }
+      Ok(())
+   })
+}
