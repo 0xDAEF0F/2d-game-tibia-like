@@ -82,17 +82,20 @@ fn handle_tcp_stream(
             return;
          };
 
-         let new_player = Player::new(
-            init_player.id,
-            username.clone(),
-            user_address,
-            tcp_write,
-            init_player.location,
-            init_player.hp,
-            init_player.max_hp,
-            init_player.level,
-            init_player.direction,
-         );
+         let new_player = Player {
+            id: init_player.id,
+            username: username.clone(),
+            client_request_id: 0,
+            location: init_player.location,
+            hp: init_player.hp,
+            max_hp: init_player.max_hp,
+            level: init_player.level,
+            direction: init_player.direction,
+            is_dead: false,
+            tcp_tx: tcp_write,
+            tcp_socket: user_address,
+            udp_socket: None,
+         };
 
          info!(
             "New player {} spawning at location {:?} with id {}",

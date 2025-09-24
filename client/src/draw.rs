@@ -180,7 +180,10 @@ pub async fn draw(
 
       render_view(&player, &map, &tilesheets);
 
-      player.render(&tilesheets);
+      // Only render player sprite if alive
+      if !mmo_context.is_dead {
+         player.render(&tilesheets);
+      }
 
       other_players.render(&player, &tilesheets);
 

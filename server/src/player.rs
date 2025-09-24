@@ -21,31 +21,31 @@ pub struct Player {
    pub udp_socket: Option<SocketAddr>,
 }
 
+pub enum DamageResult {
+   Damaged { damage: u32, hp: u32 },
+   Died { damage: u32, death_message: String },
+   AlreadyDead,
+}
+
 impl Player {
-   pub fn new(
-      id: Uuid,
-      username: String,
-      tcp_socket: SocketAddr,
-      tcp_tx: OwnedWriteHalf,
-      location: Location,
-      hp: u32,
-      max_hp: u32,
-      level: u32,
-      direction: Direction,
-   ) -> Player {
-      Player {
-         id,
-         username,
-         client_request_id: 0,
-         location,
-         tcp_socket,
-         udp_socket: None,
-         tcp_tx,
-         direction,
-         hp,
-         max_hp,
-         level,
-         is_dead: false,
+   pub fn take_damage(&mut self, damage: u32) -> DamageResult {
+      if self.is_dead {
+         return DamageResult::AlreadyDead;
+      }
+
+      self.hp = self.hp.saturating_sub(damage);
+
+      if self.hp == 0 {
+         self.is_dead = true;
+         DamageResult::Died {
+            damage,
+            death_message: "You have been slain!".to_string(),
+         }
+      } else {
+         DamageResult::Damaged {
+            damage,
+            hp: self.hp,
+         }
       }
    }
 }
