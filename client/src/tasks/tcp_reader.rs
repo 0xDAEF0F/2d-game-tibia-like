@@ -36,7 +36,7 @@ pub fn tcp_reader_task(
                      // For now, just reset to default values
                      Cc::RespawnOk {
                         hp: 100,
-                        location: (0, 0),
+                        location: (0, 0, 0),
                      }
                   }
                   TcpServerMsg::InitOk(_) => unreachable!(),

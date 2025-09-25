@@ -33,7 +33,7 @@ pub fn render_view(player: &Player, map: &Map, tilesheets: &MmoTilesheets) {
             if let Some(t) = tile
                && let Some(t_id) = t.id().into()
             {
-               tilesheets.render_tile_at("grass-tileset", t_id, (j, i));
+               tilesheets.render_tile_at("grass-tileset", t_id, (j, i, 0));
                tile_drawn = true;
                break;
             }
@@ -64,11 +64,13 @@ pub fn render_objects(player: &Player, tilesheets: &MmoTilesheets, game_objects:
 
          let (x, y) = (x as u32, y as u32);
 
-         if !game_objects.0.contains_key(&(x, y)) {
+         // Check if object exists at player's current z_level
+         let object_location = (x, y, player.z_level);
+         if !game_objects.0.contains_key(&object_location) {
             continue;
          }
 
-         let game_object = &game_objects.0[&(x, y)];
+         let game_object = &game_objects.0[&object_location];
 
          if let GameObject::Orc { hp, direction, .. } = game_object {
             trace!("Orc direction is: {direction:?}",);
@@ -106,11 +108,11 @@ pub fn render_objects(player: &Player, tilesheets: &MmoTilesheets, game_objects:
                Direction::West => 72,
             };
 
-            tilesheets.render_tile_at("tibia-sprites", tile_id, (j, i));
+            tilesheets.render_tile_at("tibia-sprites", tile_id, (j, i, 0));
             continue;
          }
 
-         tilesheets.render_tile_at("props-tileset", game_object.id(), (j, i));
+         tilesheets.render_tile_at("props-tileset", game_object.id(), (j, i, 0));
       }
    }
 }

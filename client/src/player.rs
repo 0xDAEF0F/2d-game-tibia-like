@@ -34,7 +34,7 @@ impl Player {
 
       render_player(
          self.direction,
-         (CAMERA_WIDTH / 2, CAMERA_HEIGHT / 2),
+         (CAMERA_WIDTH / 2, CAMERA_HEIGHT / 2, 0),
          tilesheets,
          self.frame,
       );
@@ -77,7 +77,7 @@ impl Player {
       }
 
       for op in op.0.values() {
-         let (px, py) = op.location;
+         let (px, py, _) = op.location;
          if (px, py) == (x as u32, y as u32) {
             return false;
          }
@@ -115,7 +115,7 @@ impl OtherPlayers {
             &op.username,
             (x as f32 * TILE_WIDTH, y as f32 * TILE_HEIGHT),
          );
-         render_player(op.direction, (x as u32, y as u32), tilesheets, op.frame);
+         render_player(op.direction, (x as u32, y as u32, 0), tilesheets, op.frame);
       }
    }
 }

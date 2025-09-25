@@ -44,7 +44,7 @@ pub fn handle_single_key_movement(
    key: KeyCode,
    current_time: f64,
 ) {
-   let (x, y) = player.curr_location;
+   let (x, y, _) = player.curr_location;
    let (x, y) = (x as i32, y as i32);
    match key {
       KeyCode::Right if Player::can_move((x + 1, y), op) => {
@@ -64,7 +64,7 @@ pub fn handle_single_key_movement(
 }
 
 pub fn handle_double_key_movement(player: &mut Player, op: &OtherPlayers, current_time: f64) {
-   let (x, y) = player.curr_location;
+   let (x, y, _) = player.curr_location;
    let (x, y) = (x as i32, y as i32);
    if is_key_down(KeyCode::Right)
       && is_key_down(KeyCode::Up)

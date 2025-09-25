@@ -41,7 +41,7 @@ pub fn handle_start_move_object(
 
    let (x, y) = (abs_x as u32, abs_y as u32);
 
-   if !game_objects.0.contains_key(&(x, y)) {
+   if !game_objects.0.contains_key(&(x, y, 0)) {
       return;
    }
 
@@ -54,7 +54,7 @@ pub fn handle_start_move_object(
       return;
    }
 
-   *moving_object = Some((x, y));
+   *moving_object = Some((x, y, 0));
 }
 
 pub fn handle_end_move_object(
@@ -91,11 +91,11 @@ pub fn handle_end_move_object(
          (x, y)
       );
 
-      game_objects.0.insert((x, y), obj);
+      game_objects.0.insert((x, y, 0), obj);
       let msg = UdpClientMsg::MoveObject {
          id: player.id,
          from: moving_obj,
-         to: (x, y),
+         to: (x, y, 0),
       };
       socket.send_msg_and_log(&msg, None);
    }

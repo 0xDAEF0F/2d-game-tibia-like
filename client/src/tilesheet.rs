@@ -26,7 +26,7 @@ impl Tilesheet {
    }
 
    pub fn render_tile_at(&self, tile_id: u32, location: Location) {
-      let (x_coordinate, y_coordinate) = location;
+      let (x_coordinate, y_coordinate, _) = location;
       let (tile_x, tile_y, width, height) = self.tile_rect(tile_id);
       draw_texture_ex(
          &self.texture,
@@ -75,7 +75,7 @@ impl MmoTilesheets<'_> {
    }
 
    pub fn render_tile_at(&self, tileset_name: &str, tile_id: u32, location: Location) {
-      let (x_coordinate, y_coordinate) = location;
+      let (x_coordinate, y_coordinate, _) = location;
       let Some((tileset, texture)) = self.layers.get(tileset_name) else {
          error!("tileset not found: {:?}", tileset_name);
          return;

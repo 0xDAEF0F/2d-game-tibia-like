@@ -8,7 +8,7 @@ use serde::{Deserialize, Serialize};
 use std::cmp::Ordering;
 use uuid::Uuid;
 
-pub type Location = (u32, u32); // (x, y) coordinates
+pub type Location = (u32, u32, u32); // (x, y, z) coordinates
 
 #[derive(Debug, Serialize, Deserialize, Clone, Copy, PartialEq, Eq)]
 pub enum Direction {
@@ -40,8 +40,8 @@ pub struct InitPlayer {
 }
 
 pub fn calculate_new_direction(prev: Location, target: Location) -> Direction {
-   let (px, py) = prev;
-   let (tx, ty) = target;
+   let (px, py, _) = prev;
+   let (tx, ty, _) = target;
 
    // NOTE: there may be a bug here
    match px.cmp(&tx) {

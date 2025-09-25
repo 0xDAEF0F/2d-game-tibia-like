@@ -50,10 +50,10 @@ pub fn bfs_find_path(map: &QuickMap, start: Location, end: Location) -> Vec<Loca
 
       // Check all adjacent tiles
       let possible_moves = [
-         (current.0.wrapping_sub(1), current.1), // Left
-         (current.0.wrapping_add(1), current.1), // Right
-         (current.0, current.1.wrapping_sub(1)), // Up
-         (current.0, current.1.wrapping_add(1)), // Down
+         (current.0.wrapping_sub(1), current.1, current.2), // Left
+         (current.0.wrapping_add(1), current.1, current.2), // Right
+         (current.0, current.1.wrapping_sub(1), current.2), // Up
+         (current.0, current.1.wrapping_add(1), current.2), // Down
       ];
 
       for next in possible_moves {
@@ -117,7 +117,7 @@ pub fn program_route_if_user_clicks_map(
    };
 
    let map = construct_map_from_unwalkable_objects(game_objects, other_players);
-   let path = bfs_find_path(&map, player.curr_location, (x, y));
+   let path = bfs_find_path(&map, player.curr_location, (x, y, 0));
 
    info!("path: {:?}", path);
 

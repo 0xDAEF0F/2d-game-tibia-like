@@ -1,5 +1,4 @@
 use crate::{Direction, Location, calculate_new_direction, constants::*};
-use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use thin_logger::log::trace;
@@ -16,62 +15,56 @@ impl GameObjects {
          loader.load_tmx_map("assets/basic-map.tmx").unwrap()
       };
 
-      let objects = map
-         .layers()
-         .filter_map(|layer| match layer.layer_type() {
-            tiled::LayerType::Objects(object_layer) => Some(object_layer),
-            tiled::LayerType::Group(group_layer) => {
-               group_layer
-                  .layers()
-                  .find_map(|layer| match layer.layer_type() {
-                     tiled::LayerType::Objects(object_layer) => Some(object_layer),
-                     _ => None,
-                  })
-            }
-            _ => None,
-         })
-         .collect_vec();
+      let mut all_objects = HashMap::new();
 
-      if objects.is_empty() {
-         return GameObjects(HashMap::new());
+      // Iterate through groups to get objects with proper z-levels
+      for (group_idx, layer) in map.layers().enumerate() {
+         if let tiled::LayerType::Group(group_layer) = layer.layer_type() {
+            let z_level = group_idx as u32;
+
+            // Find object layers within this group
+            for inner_layer in group_layer.layers() {
+               if let tiled::LayerType::Objects(object_layer) = inner_layer.layer_type() {
+                  for od in object_layer.object_data() {
+                     let tile_data = od.tile_data().unwrap();
+                     let tiled::TilesetLocation::Map(location) = tile_data.tileset_location()
+                     else {
+                        panic!("Invalid tileset location layer!");
+                     };
+                     let tile_id = od.tile_data().expect("expected tile data").id();
+
+                     let game_object = match tile_id {
+                        149 => GameObject::FlowerPot {
+                           id: tile_id,
+                           tileset_location: *location,
+                        },
+                        63 => GameObject::Orc {
+                           id: tile_id,
+                           tileset_location: *location,
+                           hp: 100,
+                           direction: Direction::South,
+                        },
+                        83 => GameObject::Ladder {
+                           id: tile_id,
+                           tileset_location: *location,
+                           target_z: 1, // Goes up one level
+                        },
+                        id => todo!("game object id: {id} is not implemented"),
+                     };
+
+                     let obj_location = (
+                        (od.x / TILE_WIDTH) as u32,
+                        (od.y / TILE_HEIGHT) as u32,
+                        z_level,
+                     );
+                     all_objects.insert(obj_location, game_object);
+                  }
+               }
+            }
+         }
       }
 
-      let objects = objects[0].object_data();
-
-      let objects = objects.iter().map(|od| {
-         let tile_data = od.tile_data().unwrap();
-         let tiled::TilesetLocation::Map(location) = tile_data.tileset_location() else {
-            panic!("Invalid tileset location layer!");
-         };
-         let tile_id = od.tile_data().expect("expected tile data").id();
-
-         let game_object = match tile_id {
-            149 => GameObject::FlowerPot {
-               id: tile_id,
-               tileset_location: *location,
-            },
-            63 => GameObject::Orc {
-               id: tile_id,
-               tileset_location: *location,
-               hp: 100,
-               direction: Direction::South,
-            },
-            83 => GameObject::Ladder {
-               id: tile_id,
-               tileset_location: *location,
-               target_z: 1, // Goes up one level
-            },
-            id => todo!("game object id: {id} is not implemented"),
-         };
-
-         (
-            ((od.x / TILE_WIDTH) as u32, (od.y / TILE_HEIGHT) as u32),
-            game_object,
-         )
-      });
-      let objects: HashMap<Location, GameObject> = HashMap::from_iter(objects);
-
-      GameObjects(objects)
+      GameObjects(all_objects)
    }
 
    pub fn get_objects(self) -> Vec<(Location, GameObject)> {
@@ -153,11 +146,31 @@ mod tests {
    fn test_load_map() {
       let map = {
          let mut loader = Loader::new();
-         loader.load_tmx_map("assets/basic-map.tmx").unwrap()
+         loader.load_tmx_map("../assets/basic-map.tmx").unwrap()
       };
 
-      let layer = map.get_layer(0).unwrap();
+      // Check we have 2 groups
+      let layers: Vec<_> = map.layers().collect();
+      assert_eq!(layers.len(), 2);
 
-      assert_eq!(layer.name, "Tile Layer 1");
+      // First group should be "base" with 2 layers
+      let base_group = map.get_layer(0).unwrap();
+      assert_eq!(base_group.name, "base");
+      if let tiled::LayerType::Group(group_layer) = base_group.layer_type() {
+         let base_layers: Vec<_> = group_layer.layers().collect();
+         assert_eq!(base_layers.len(), 2);
+      } else {
+         panic!("Expected base to be a group layer");
+      }
+
+      // Second group should be "top" with 1 layer
+      let top_group = map.get_layer(1).unwrap();
+      assert_eq!(top_group.name, "top");
+      if let tiled::LayerType::Group(group_layer) = top_group.layer_type() {
+         let top_layers: Vec<_> = group_layer.layers().collect();
+         assert_eq!(top_layers.len(), 1);
+      } else {
+         panic!("Expected top to be a group layer");
+      }
    }
 }

@@ -31,7 +31,7 @@ pub async fn generate_spawn_location(
    while y < MAP_HEIGHT {
       let mut x = 0;
       while x < MAP_WIDTH {
-         let test_loc = (x, y);
+         let test_loc = (x, y, 0); // Always spawn at z_level 0
          if !taken_locations.contains(&test_loc) {
             info!("Found spawn location for new player at {:?}", test_loc);
             return test_loc;
@@ -43,5 +43,5 @@ pub async fn generate_spawn_location(
 
    // Fallback to (0,0) if somehow all locations are taken
    warn!("No available spawn location found, using (0,0)");
-   (0, 0)
+   (0, 0, 0)
 }

@@ -74,7 +74,7 @@ impl MmoMap {
       map
    }
 
-   pub fn get(&self, (x, y): Location) -> Option<&MapElement> {
+   pub fn get(&self, (x, y, _): Location) -> Option<&MapElement> {
       self.0.get(y as usize).and_then(|row| row.get(x as usize))
    }
 
@@ -117,10 +117,10 @@ impl MmoMap {
          }
 
          let neighbors = [
-            (current.0.wrapping_sub(1), current.1),
-            (current.0 + 1, current.1),
-            (current.0, current.1.wrapping_sub(1)),
-            (current.0, current.1 + 1),
+            (current.0.wrapping_sub(1), current.1, current.2),
+            (current.0 + 1, current.1, current.2),
+            (current.0, current.1.wrapping_sub(1), current.2),
+            (current.0, current.1 + 1, current.2),
          ];
 
          for &neighbor in &neighbors {

@@ -43,8 +43,8 @@ pub fn sc_rx_task(
                   continue;
                }
 
-               let (old_x, old_y) = player.location;
-               let (new_x, new_y) = location;
+               let (old_x, old_y, _) = player.location;
+               let (new_x, new_y, _) = location;
                if new_x > old_x {
                   player.direction = Direction::East;
                } else if new_x < old_x {
