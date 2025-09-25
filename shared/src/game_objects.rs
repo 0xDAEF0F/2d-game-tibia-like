@@ -20,9 +20,21 @@ impl GameObjects {
          .layers()
          .filter_map(|layer| match layer.layer_type() {
             tiled::LayerType::Objects(object_layer) => Some(object_layer),
+            tiled::LayerType::Group(group_layer) => {
+               group_layer
+                  .layers()
+                  .find_map(|layer| match layer.layer_type() {
+                     tiled::LayerType::Objects(object_layer) => Some(object_layer),
+                     _ => None,
+                  })
+            }
             _ => None,
          })
          .collect_vec();
+
+      if objects.is_empty() {
+         return GameObjects(HashMap::new());
+      }
 
       let objects = objects[0].object_data();
 
@@ -43,6 +55,11 @@ impl GameObjects {
                tileset_location: *location,
                hp: 100,
                direction: Direction::South,
+            },
+            83 => GameObject::Ladder {
+               id: tile_id,
+               tileset_location: *location,
+               target_z: 1, // Goes up one level
             },
             id => todo!("game object id: {id} is not implemented"),
          };
@@ -87,6 +104,11 @@ pub enum GameObject {
       hp: u32,
       direction: Direction,
    },
+   Ladder {
+      id: u32,
+      tileset_location: usize,
+      target_z: u32,
+   },
 }
 
 impl GameObject {
@@ -94,6 +116,7 @@ impl GameObject {
       match self {
          GameObject::FlowerPot { id, .. } => *id,
          GameObject::Orc { id, .. } => *id,
+         GameObject::Ladder { id, .. } => *id,
       }
    }
 
@@ -113,6 +136,9 @@ impl GameObject {
             tileset_location, ..
          } => *tileset_location,
          GameObject::Orc {
+            tileset_location, ..
+         } => *tileset_location,
+         GameObject::Ladder {
             tileset_location, ..
          } => *tileset_location,
       }

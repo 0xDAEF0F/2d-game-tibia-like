@@ -14,15 +14,32 @@ pub fn render_view(player: &Player, map: &Map, tilesheets: &MmoTilesheets) {
          let x = player.curr_location.0 as i32 - CAMERA_WIDTH as i32 / 2 + j as i32;
          let y = player.curr_location.1 as i32 - CAMERA_HEIGHT as i32 / 2 + i as i32;
 
-         let tile_id = map
-            .get_layer(0)
-            .and_then(|l| l.as_tile_layer())
-            .and_then(|tl| tl.get_tile(x, y))
-            .and_then(|t| t.id().into());
+         let mut tile_drawn = false;
 
-         if let Some(t_id) = tile_id {
-            tilesheets.render_tile_at("grass-tileset", t_id, (j, i));
-         } else {
+         // Iterate through all layers to find the correct z-level
+         for (group_idx, layer) in map.layers().enumerate() {
+            // z_level 0 = base group (first group), z_level 1 = top group (second group)
+            let tile = match layer.layer_type() {
+               tiled::LayerType::Group(group_layer) if group_idx == player.z_level as usize => {
+                  // Look for tile layers inside the current z-level group
+                  group_layer.layers().find_map(|l| match l.layer_type() {
+                     tiled::LayerType::Tiles(tl) => tl.get_tile(x, y),
+                     _ => None,
+                  })
+               }
+               _ => None,
+            };
+
+            if let Some(t) = tile
+               && let Some(t_id) = t.id().into()
+            {
+               tilesheets.render_tile_at("grass-tileset", t_id, (j, i));
+               tile_drawn = true;
+               break;
+            }
+         }
+
+         if !tile_drawn {
             draw_rectangle(
                j as f32 * TILE_HEIGHT,
                i as f32 * TILE_WIDTH,

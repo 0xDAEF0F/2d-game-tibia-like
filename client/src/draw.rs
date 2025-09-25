@@ -1,7 +1,7 @@
 use crate::{
    Cc, ChatMessage, ClientChannel, FpsLogger, GameObjects, Location, MmoContext, MmoTilesheets,
    OtherPlayer, OtherPlayers, PingMonitor, Player, make_egui,
-   movement::{handle_player_movement, send_pos_to_server},
+   movement::{check_ladder_interaction, handle_player_movement, send_pos_to_server},
    object_interaction::{handle_end_move_object, handle_start_move_object},
    pathfinding::{handle_route, program_route_if_user_clicks_map},
    rendering::{render_objects, render_view},
@@ -196,6 +196,9 @@ pub async fn draw(
          handle_route(&mut player, &game_objects, &other_players);
 
          handle_player_movement(&mut player, &other_players);
+
+         // Check for ladder interaction after movement
+         check_ladder_interaction(&mut player, &game_objects);
 
          // Object movements
          handle_start_move_object(&game_objects, &mut moving_object, &player);

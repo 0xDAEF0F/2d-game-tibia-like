@@ -14,6 +14,7 @@ pub struct Player {
    pub max_hp: u32,
    pub curr_location: Location,
    pub prev_location: Location,
+   pub z_level: u32,
    pub route: VecDeque<Location>,
    pub last_move_timer: f64,
    pub speed: f32,

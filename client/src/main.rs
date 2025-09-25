@@ -20,7 +20,7 @@ use tokio::{
 
 #[tokio::main]
 async fn main() -> Result<()> {
-   thin_logger::build(LevelFilter::Info.into()).init();
+   thin_logger::build(LevelFilter::Debug.into()).init();
 
    let socket = UdpSocket::bind("0.0.0.0:0").await?;
    let socket = Arc::new(socket);
@@ -77,6 +77,7 @@ async fn main() -> Result<()> {
       speed: BASE_MOVE_DELAY,
       curr_location: init_player.location,
       prev_location: init_player.location,
+      z_level: init_player.z_level,
       route: VecDeque::new(),
       last_move_timer: 0.0,
       direction: init_player.direction,

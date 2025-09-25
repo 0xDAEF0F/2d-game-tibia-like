@@ -60,6 +60,13 @@ impl MmoMap {
                last_movement: Instant::now(),
                last_attack: Instant::now(),
             }),
+            GameObject::Ladder {
+               id,
+               tileset_location,
+               ..
+            } => MapElement::Object(Object {
+               id: (id, tileset_location),
+            }),
          };
          map[location] = map_element;
       }

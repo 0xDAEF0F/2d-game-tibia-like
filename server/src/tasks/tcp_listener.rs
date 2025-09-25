@@ -70,6 +70,7 @@ fn handle_tcp_stream(
             id: Uuid::new_v4(),
             username: username.clone(),
             location: generate_spawn_location(players.clone(), game_objects.clone()).await,
+            z_level: 0, // Start on ground floor
             hp: 100,
             max_hp: 100,
             level: 1,

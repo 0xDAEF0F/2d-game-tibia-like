@@ -148,22 +148,22 @@ pub fn sc_rx_task(
 
                   // Send respawn confirmation via TCP
                   let respawn_ok = TcpServerMsg::RespawnOk;
-                  if let Ok(serialized) = bincode::serialize(&respawn_ok) {
-                     if player.tcp_tx.write_all(&serialized).await.is_err() {
-                        error!(
-                           "Failed to send respawn confirmation to player {}",
-                           player_id
-                        );
-                     }
+                  if let Ok(serialized) = bincode::serialize(&respawn_ok)
+                     && player.tcp_tx.write_all(&serialized).await.is_err()
+                  {
+                     error!(
+                        "Failed to send respawn confirmation to player {}",
+                        player_id
+                     );
                   }
 
                   // Send updated health and location via UDP
                   if let Some(udp_addr) = player.udp_socket {
                      let respawn_msg = UdpServerMsg::PlayerHealthUpdate { hp: player.max_hp };
-                     if let Ok(serialized) = bincode::serialize(&respawn_msg) {
-                        if udp_socket.send_to(&serialized, udp_addr).await.is_err() {
-                           error!("Failed to send health update to player {}", player_id);
-                        }
+                     if let Ok(serialized) = bincode::serialize(&respawn_msg)
+                        && udp_socket.send_to(&serialized, udp_addr).await.is_err()
+                     {
+                        error!("Failed to send health update to player {}", player_id);
                      }
                   }
 

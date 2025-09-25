@@ -32,6 +32,7 @@ pub struct InitPlayer {
    pub id: Uuid,
    pub username: String,
    pub location: Location,
+   pub z_level: u32,
    pub hp: u32,
    pub max_hp: u32,
    pub level: u32,

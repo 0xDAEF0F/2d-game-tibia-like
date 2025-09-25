@@ -313,4 +313,3 @@ pub fn game_loop_task(
       }
    })
 }
-

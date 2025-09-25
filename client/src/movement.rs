@@ -1,7 +1,7 @@
 use crate::{OtherPlayers, Player};
 use egui_macroquad::macroquad::prelude::*;
-use shared::{Direction, constants::BASE_MOVE_DELAY};
-use thin_logger::log::debug;
+use shared::{Direction, GameObject, GameObjects, constants::BASE_MOVE_DELAY};
+use thin_logger::log::{debug, info};
 
 pub fn send_pos_to_server(player: &mut Player, socket: &tokio::net::UdpSocket) {
    use shared::network::{sendable::SendableSync, udp::UdpClientMsg};
@@ -113,4 +113,17 @@ pub fn move_player(player: &mut Player, direction: (isize, isize), current_time:
 
    player.direction = direction;
    player.frame = (player.frame + 1) % 3; // Cycle through frames 0, 1, 2
+}
+
+pub fn check_ladder_interaction(player: &mut Player, game_objects: &GameObjects) {
+   // Check if player is standing on a ladder
+   if let Some(GameObject::Ladder { target_z, .. }) = game_objects.0.get(&player.curr_location)
+      && player.z_level != *target_z
+   {
+      info!(
+         "Player stepping on ladder, changing z_level from {} to {}",
+         player.z_level, target_z
+      );
+      player.z_level = *target_z;
+   }
 }
