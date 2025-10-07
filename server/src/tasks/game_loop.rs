@@ -65,6 +65,11 @@ async fn handle_player_damage(
          udp_socket
             .send_msg_and_log_(health_msg, Some(player_udp))
             .await;
+
+         let damage_msg = UdpServerMsg::DamageNumber { damage };
+         udp_socket
+            .send_msg_and_log_(damage_msg, Some(player_udp))
+            .await;
       }
       DamageResult::Died {
          damage,
@@ -126,7 +131,7 @@ async fn process_monster_attack(
    drop(mmo_map);
 
    // hardcoded damage for now
-   handle_player_damage(player, 50, game_objects, udp_socket, player_udp).await;
+   handle_player_damage(player, 10, game_objects, udp_socket, player_udp).await;
 
    true
 }

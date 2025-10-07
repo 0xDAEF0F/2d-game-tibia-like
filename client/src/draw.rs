@@ -8,6 +8,12 @@ use crate::{
    tasks::tcp_reader_task,
 };
 use egui_macroquad::macroquad::prelude::*;
+
+#[derive(Debug, Clone)]
+struct DamageNumber {
+   damage: u32,
+   spawn_time: f64,
+}
 use shared::{
    constants::{MAX_CONNECTION_RETRIES, SERVER_TCP_ADDR},
    tcp::TcpClientMsg,
@@ -95,6 +101,7 @@ pub async fn draw(
    let mut ping_monitor = PingMonitor::new();
 
    let mut is_disconnected = false;
+   let mut damage_numbers: Vec<DamageNumber> = Vec::new();
 
    let mut mmo_context = MmoContext {
       username: player.username.clone(),
@@ -167,6 +174,12 @@ pub async fn draw(
                info!("Player died: {}", message);
                mmo_context.is_dead = true;
             }
+            Cc::DamageNumber { damage } => {
+               damage_numbers.push(DamageNumber {
+                  damage,
+                  spawn_time: get_time(),
+               });
+            }
             Cc::RespawnOk { hp, location } => {
                info!("Respawned at location {:?} with {} HP", location, hp);
                player.hp = hp;
@@ -188,6 +201,13 @@ pub async fn draw(
       other_players.render(&player, &tilesheets);
 
       render_objects(&player, &tilesheets, &game_objects);
+
+      // Render damage numbers
+      render_damage_numbers(&damage_numbers);
+
+      // Clean up expired damage numbers (older than 1.5 seconds)
+      let current_time = get_time();
+      damage_numbers.retain(|dn| current_time - dn.spawn_time < 1.5);
 
       // Skip player interactions if dead
       if !mmo_context.is_dead {
@@ -223,5 +243,36 @@ pub async fn draw(
       }
 
       next_frame().await;
+   }
+}
+
+fn render_damage_numbers(damage_numbers: &[DamageNumber]) {
+   use shared::constants::*;
+
+   let current_time = get_time();
+
+   // Player is rendered in the center of the screen
+   let player_x = (CAMERA_WIDTH / 2) as f32 * TILE_WIDTH;
+   let player_y = (CAMERA_HEIGHT / 2) as f32 * TILE_HEIGHT;
+
+   for damage_number in damage_numbers {
+      let elapsed = current_time - damage_number.spawn_time;
+      let lifetime = 1.5; // 1.5 seconds total lifetime
+
+      // Calculate alpha (fade out over time)
+      let alpha = (1.0 - (elapsed / lifetime)).max(0.0);
+
+      // Float upward over time (move up by 30 pixels over the lifetime)
+      let float_distance = elapsed * 20.0; // 20 pixels per second
+
+      // Position slightly to the top-right of the player
+      let x = player_x + 16.0; // offset to the right
+      let y = player_y - 10.0 - float_distance as f32; // offset up and float
+
+      // Draw the damage number
+      let damage_text = format!("{}", damage_number.damage);
+      let color = Color::new(1.0, 0.0, 0.0, alpha as f32); // Red with fading alpha
+
+      draw_text(&damage_text, x, y, 24.0, color);
    }
 }

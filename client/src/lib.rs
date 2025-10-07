@@ -49,4 +49,7 @@ pub enum Cc {
       hp: u32,
       location: Location,
    },
+   DamageNumber {
+      damage: u32,
+   },
 }

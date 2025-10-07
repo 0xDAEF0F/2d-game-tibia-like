@@ -65,6 +65,13 @@ pub fn udp_recv_task(
                   };
                   cc_tx.send(cc)?;
                }
+               UdpServerMsg::DamageNumber { damage } => {
+                  let cc = ClientChannel {
+                     id: user_id,
+                     msg: Cc::DamageNumber { damage },
+                  };
+                  cc_tx.send(cc)?;
+               }
             };
          }
       }

@@ -22,6 +22,9 @@ pub enum UdpServerMsg {
    PlayerDeath {
       message: String,
    },
+   DamageNumber {
+      damage: u32,
+   },
 }
 
 // CLIENT -> SERVER
