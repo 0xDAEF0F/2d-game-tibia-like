@@ -33,11 +33,11 @@ pub enum Sc {
 }
 
 #[derive(Debug, Default)]
-pub struct MmoMap([[MapElement; MAP_WIDTH as usize]; MAP_HEIGHT as usize]);
+pub struct MmoMap([[[MapElement; MAP_WIDTH as usize]; MAP_HEIGHT as usize]; MAP_DEPTH as usize]);
 
 impl MmoMap {
    pub fn new() -> MmoMap {
-      MmoMap([[MapElement::Empty; MAP_WIDTH as usize]; MAP_HEIGHT as usize])
+      MmoMap([[[MapElement::Empty; MAP_WIDTH as usize]; MAP_HEIGHT as usize]; MAP_DEPTH as usize])
    }
 
    pub fn from_game_objects(game_objects: GameObjects) -> MmoMap {
@@ -74,8 +74,10 @@ impl MmoMap {
       map
    }
 
-   pub fn get(&self, (x, y, _): Location) -> Option<&MapElement> {
-      self.0.get(y as usize).and_then(|row| row.get(x as usize))
+   pub fn get(&self, (x, y, z): Location) -> Option<&MapElement> {
+      self.0.get(z as usize)
+         .and_then(|z_level| z_level.get(y as usize))
+         .and_then(|row| row.get(x as usize))
    }
 
    pub fn move_monster(&mut self, from: Location, to: Location) -> Option<()> {
@@ -141,13 +143,13 @@ impl MmoMap {
 impl Index<Location> for MmoMap {
    type Output = MapElement;
    fn index(&self, loc: Location) -> &Self::Output {
-      &self.0[loc.1 as usize][loc.0 as usize]
+      &self.0[loc.2 as usize][loc.1 as usize][loc.0 as usize]
    }
 }
 
 impl IndexMut<Location> for MmoMap {
    fn index_mut(&mut self, loc: Location) -> &mut Self::Output {
-      &mut self.0[loc.1 as usize][loc.0 as usize]
+      &mut self.0[loc.2 as usize][loc.1 as usize][loc.0 as usize]
    }
 }
 

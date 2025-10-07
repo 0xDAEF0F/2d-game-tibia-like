@@ -21,7 +21,7 @@ use uuid::Uuid;
 fn is_adjacent(a: Location, b: Location) -> bool {
    let dx = (a.0 as i32 - b.0 as i32).abs();
    let dy = (a.1 as i32 - b.1 as i32).abs();
-   dx <= 1 && dy <= 1
+   a.2 == b.2 && dx <= 1 && dy <= 1
 }
 
 fn is_within_view(monster_pos: Location, player_pos: Location) -> bool {
@@ -30,7 +30,8 @@ fn is_within_view(monster_pos: Location, player_pos: Location) -> bool {
    let min_y = (monster_pos.1 as i32) - ((CAMERA_HEIGHT / 2) as i32);
    let max_y = (monster_pos.1 as i32) + ((CAMERA_HEIGHT / 2) as i32);
 
-   (min_x..=max_x).contains(&(player_pos.0 as i32))
+   monster_pos.2 == player_pos.2
+      && (min_x..=max_x).contains(&(player_pos.0 as i32))
       && (min_y..=max_y).contains(&(player_pos.1 as i32))
 }
 

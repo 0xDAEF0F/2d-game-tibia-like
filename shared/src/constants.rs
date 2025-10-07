@@ -14,6 +14,7 @@ pub const CAMERA_HEIGHT: u32 = 15;
 
 pub const MAP_WIDTH: u32 = 30;
 pub const MAP_HEIGHT: u32 = 20;
+pub const MAP_DEPTH: u32 = 2; // Number of z-levels (floors)
 
 pub const BASE_MOVE_DELAY: f32 = 0.2; // expressed in seconds (1 tile / 0.2 secs)
 

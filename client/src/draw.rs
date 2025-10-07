@@ -198,7 +198,9 @@ pub async fn draw(
          handle_player_movement(&mut player, &other_players);
 
          // Check for ladder interaction after movement
-         check_ladder_interaction(&mut player, &game_objects);
+         if player.curr_location != player.prev_location {
+            check_ladder_interaction(&mut player, &game_objects);
+         }
 
          // Object movements
          handle_start_move_object(&game_objects, &mut moving_object, &player);

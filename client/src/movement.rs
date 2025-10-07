@@ -125,5 +125,7 @@ pub fn check_ladder_interaction(player: &mut Player, game_objects: &GameObjects)
          player.z_level, target_z
       );
       player.z_level = *target_z;
+      player.curr_location.2 = *target_z;
+      player.prev_location.2 = *target_z;
    }
 }
