@@ -49,6 +49,11 @@ impl GameObjects {
                            tileset_location: *location,
                            target_z: 1, // Goes up one level
                         },
+                        115 => GameObject::Ladder {
+                           id: tile_id,
+                           tileset_location: *location,
+                           target_z: 0, // Goes down to base level
+                        },
                         id => todo!("game object id: {id} is not implemented"),
                      };
 
